@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NotasPat - Notas Adesivas para Tarefas. Extensão Google Chrome para organizar suas tarefas com notas, tags, cores e lembretes.">
+    <title>NotasPat - Notas Adesivas para Tarefas</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1351b4 0%, #1e3a8a 100%);
+            color: white;
+            padding: 50px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        header .tagline {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        header .version {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            color: #1351b4;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #1351b4;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-card .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .feature-card h3 {
+            color: #1e3a8a;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            color: #6b7280;
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .install-section {
+            background: #f0f7ff;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .install-section h3 {
+            color: #1351b4;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            background: #1351b4;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background: #1e3a8a;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(19, 81, 180, 0.3);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #1351b4;
+            border: 2px solid #1351b4;
+        }
+
+        .btn-secondary:hover {
+            background: #f0f7ff;
+        }
+
+        .screenshot {
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+            margin: 20px 0;
+        }
+
+        .template-list {
+            list-style: none;
+            margin-top: 15px;
+        }
+
+        .template-list li {
+            padding: 12px 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .template-list li::before {
+            content: "📋";
+            font-size: 1.2rem;
+        }
+
+        .shortcuts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .shortcuts-table th,
+        .shortcuts-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .shortcuts-table th {
+            background: #f9fafb;
+            color: #1351b4;
+        }
+
+        .shortcuts-table code {
+            background: #f3f4f6;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        footer {
+            background: #1e293b;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        footer .links {
+            margin-bottom: 15px;
+        }
+
+        footer a {
+            color: #60a5fa;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        footer p {
+            margin: 5px 0;
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+
+        .note-colors {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .color-sample {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            header {
+                padding: 30px 20px;
+            }
+
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .content {
+                padding: 25px 20px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h2 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 NotasPat</h1>
+            <p class="tagline">Notas Adesivas para Tarefas</p>
+            <span class="version">Versão 1.2.0</span>
+        </header>
+
+        <div class="content">
+            <!-- Sobre -->
+            <section class="section">
+                <h2>Sobre a Extensão</h2>
+                <p>NotasPat é uma extensão para Google Chrome que adiciona notas adesivas (sticky notes) às tarefas de portais de atendimento. Organize suas tarefas com notas visuais, tags, cores, templates e lembretes.</p>
+                <p style="margin-top: 15px;">Todas as suas notas são armazenadas localmente no navegador, garantindo privacidade e segurança.</p>
+            </section>
+
+            <!-- Instalação -->
+            <section class="install-section">
+                <h3>Instale a NotasPat</h3>
+                <p style="margin-bottom: 20px;">Disponível na Chrome Web Store</p>
+                <a href="https://chrome.google.com/webstore" class="btn">Instalar do Chrome Web Store</a>
+                <a href="https://github.com/Raos48/patnotas" class="btn btn-secondary">Ver no GitHub</a>
+            </section>
+
+            <!-- Recursos -->
+            <section class="section">
+                <h2>Recursos</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="icon">📌</div>
+                        <h3>Notas Adesivas</h3>
+                        <p>Adicione notas visuais vinculadas ao número de protocolo</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🏷️</div>
+                        <h3>Tags</h3>
+                        <p>Categorize com tags: urgente, pendência, lembrete, concluído</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🎨</div>
+                        <h3>6 Cores</h3>
+                        <p>Personalize suas notas com diferentes cores</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">📋</div>
+                        <h3>Templates</h3>
+                        <p>Use templates pré-definidos para textos comuns</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">⏰</div>
+                        <h3>Lembretes</h3>
+                        <p>Defina lembretes com notificações do navegador</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🔍</div>
+                        <h3>Busca</h3>
+                        <p>Encontre notas facilmente com busca e filtros</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">💾</div>
+                        <h3>Exportar/Importar</h3>
+                        <p>Backup de suas notas em formato JSON</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🌙</div>
+                        <h3>Modo Escuro</h3>
+                        <p>Interface com tema claro e escuro</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Templates -->
+            <section class="section">
+                <h2>Templates Disponíveis</h2>
+                <ul class="template-list">
+                    <li>Aguardando documentação</li>
+                    <li>Ligar para interessado</li>
+                    <li>Em análise</li>
+                    <li>Aguardando retorno</li>
+                </ul>
+            </section>
+
+            <!-- Cores -->
+            <section class="section">
+                <h2>Cores Disponíveis</h2>
+                <p>Escolha entre 6 cores diferentes para suas notas:</p>
+                <div class="note-colors">
+                    <div class="color-sample" style="background: #fef08a;"></div>
+                    <div class="color-sample" style="background: #fed7aa;"></div>
+                    <div class="color-sample" style="background: #fecaca;"></div>
+                    <div class="color-sample" style="background: #bbf7d0;"></div>
+                    <div class="color-sample" style="background: #bfdbfe;"></div>
+                    <div class="color-sample" style="background: #e9d5ff;"></div>
+                </div>
+            </section>
+
+            <!-- Atalhos -->
+            <section class="section">
+                <h2>Atalhos de Teclado</h2>
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr>
+                            <th>Atalho</th>
+                            <th>Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Ctrl+Shift+N</code></td>
+                            <td>Abrir popup de notas (Windows/Linux)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Command+Shift+N</code></td>
+                            <td>Abrir popup de notas (Mac)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Privacidade -->
+            <section class="section">
+                <h2>Privacidade</h2>
+                <p>Sua privacidade é nossa prioridade. A NotasPat:</p>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>Armazena todos os dados <strong>localmente</strong> no seu navegador</li>
+                    <li><strong>Não</strong> envia dados para servidores externos</li>
+                    <li><strong>Não</strong> coleta informações pessoais</li>
+                    <li>Permite exportar e excluir seus dados a qualquer momento</li>
+                </ul>
+                <p style="margin-top: 20px;">
+                    <a href="privacy.html" class="btn btn-secondary">Ver Política de Privacidade</a>
+                </p>
+            </section>
+
+            <!-- Como Usar -->
+            <section class="section">
+                <h2>Como Usar</h2>
+                <ol style="margin-left: 20px; line-height: 2;">
+                    <li>Instale a extensão do Chrome Web Store</li>
+                    <li>Acesse o Portal de Atendimento desejado</li>
+                    <li>Navegue até a tela de Tarefas</li>
+                    <li>Clique no botão <strong>📝 Nota</strong> na coluna "Interessado"</li>
+                    <li>Adicione sua nota, escolha cores, tags e lembretes</li>
+                    <li>Salve e visualize a nota adesiva na tela</li>
+                </ol>
+            </section>
+
+            <!-- Suporte -->
+            <section class="section">
+                <h2>Suporte</h2>
+                <p>Para dúvidas, sugestões ou reportar problemas:</p>
+                <p style="margin-top: 10px;">
+                    <strong>Autor:</strong> Ricardo Alves<br>
+                    <strong>E-mail:</strong> <a href="mailto:ric2035843@gmail.com" style="color: #1351b4;">ric2035843@gmail.com</a>
+                </p>
+            </section>
+        </div>
+
+        <footer>
+            <div class="links">
+                <a href="https://github.com/Raos48/patnotas">GitHub</a>
+                <a href="privacy.html">Política de Privacidade</a>
+            </div>
+            <p>&copy; 2026 NotasPat - Todos os direitos reservados</p>
+            <p>Desenvolvido para facilitar o trabalho no atendimento de tarefas e processos</p>
+        </footer>
+    </div>
+</body>
+</html>
