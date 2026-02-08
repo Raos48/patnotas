@@ -1,0 +1,760 @@
+/**
+ * Estilos - INSS Notas Adesivas
+ * Notas adesivas nas tabelas de tarefas do INSS
+ * Versão 1.1.0 - Com Dark Mode, Preview, Widget e mais
+ */
+
+/* ============ CSS VARIABLES (THEMING) ============ */
+:root {
+  --inss-bg-primary: #ffffff;
+  --inss-bg-secondary: #f5f5f5;
+  --inss-bg-tertiary: #f0f0f0;
+  --inss-text-primary: #333333;
+  --inss-text-secondary: #555555;
+  --inss-text-muted: #888888;
+  --inss-border-color: #dddddd;
+  --inss-accent-primary: #1351b4;
+  --inss-accent-secondary: #0d3d8a;
+  --inss-shadow-sm: rgba(0, 0, 0, 0.1);
+  --inss-shadow-md: rgba(0, 0, 0, 0.15);
+  --inss-success-bg: #d4edda;
+  --inss-success-text: #155724;
+  --inss-error-bg: #f8d7da;
+  --inss-error-text: #721c24;
+  --inss-warning-bg: #fff3cd;
+  --inss-warning-text: #856404;
+}
+
+/* Dark Theme - injected via class */
+.inss-dark-theme {
+  --inss-bg-primary: #1a1a2e;
+  --inss-bg-secondary: #16213e;
+  --inss-bg-tertiary: #1f2940;
+  --inss-text-primary: #e8e8e8;
+  --inss-text-secondary: #b8b8b8;
+  --inss-text-muted: #888888;
+  --inss-border-color: #2d3748;
+  --inss-accent-primary: #4a90d9;
+  --inss-accent-secondary: #3b7dd8;
+  --inss-shadow-sm: rgba(0, 0, 0, 0.3);
+  --inss-shadow-md: rgba(0, 0, 0, 0.4);
+  --inss-success-bg: #1e3a2f;
+  --inss-success-text: #6ee7b7;
+  --inss-error-bg: #3b1f1f;
+  --inss-error-text: #fca5a5;
+  --inss-warning-bg: #3d2f1a;
+  --inss-warning-text: #fcd34d;
+}
+
+/* ============ CONTAINER ============ */
+.inss-nota-container {
+  margin-top: 8px;
+  position: relative;
+}
+
+/* ============ POST-IT VISUAL ============ */
+.inss-nota-sticky {
+  background: var(--nota-bg, #fff8c6);
+  padding: 8px 10px;
+  margin-top: 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  position: relative;
+  box-shadow: 2px 2px 6px var(--inss-shadow-md);
+  max-width: 220px;
+  animation: inss-nota-fadeIn 0.2s ease;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.inss-nota-sticky:hover {
+  transform: translateY(-2px);
+  box-shadow: 3px 4px 10px var(--inss-shadow-md);
+}
+
+@keyframes inss-nota-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============ HEADER DA NOTA ============ */
+.inss-nota-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.inss-nota-titulo {
+  font-weight: 600;
+  color: #333;
+  flex-shrink: 0;
+}
+
+.inss-nota-actions {
+  display: flex;
+  gap: 2px;
+}
+
+/* ============ BOTÕES DE AÇÃO ============ */
+.inss-nota-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+  opacity: 0.6;
+  transition: opacity 0.2s, transform 0.1s;
+  line-height: 1;
+}
+
+.inss-nota-btn:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.inss-nota-btn:active {
+  transform: scale(1.05);
+}
+
+/* ============ TEXTO DA NOTA ============ */
+.inss-nota-text {
+  color: #333;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ============ TAGS NA NOTA ============ */
+.inss-nota-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.inss-nota-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.inss-nota-tag-urgente {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.inss-nota-tag-pendencia {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.inss-nota-tag-lembrete {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.inss-nota-tag-concluido {
+  background: #d1fae5;
+  color: #059669;
+}
+
+/* ============ DOBRA ============ */
+.inss-nota-dobra {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-top: 12px solid transparent;
+  border-right: 0;
+  border-bottom: 12px solid var(--nota-dobra, #f3e58d);
+  pointer-events: none;
+}
+
+/* ============ BOTÃO ADICIONAR ============ */
+.inss-nota-add-btn {
+  background: var(--inss-bg-tertiary);
+  border: 1px solid var(--inss-border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--inss-text-secondary);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inss-nota-add-btn:hover {
+  background: var(--inss-bg-secondary);
+  border-color: var(--inss-accent-primary);
+  transform: scale(1.02);
+}
+
+.inss-nota-add-btn span {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* ============ EDITOR INLINE ============ */
+.inss-nota-editor {
+  background: var(--inss-bg-primary);
+  border: 1px solid var(--inss-border-color);
+  border-radius: 6px;
+  padding: 10px;
+  margin-top: 6px;
+  max-width: 280px;
+  box-shadow: 0 2px 8px var(--inss-shadow-sm);
+}
+
+.inss-nota-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 1px solid var(--inss-border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  background: var(--inss-bg-primary);
+  color: var(--inss-text-primary);
+}
+
+.inss-nota-textarea:focus {
+  outline: none;
+  border-color: var(--inss-accent-primary);
+  box-shadow: 0 0 0 2px rgba(19, 81, 180, 0.1);
+}
+
+/* ============ CHARACTER COUNTER ============ */
+.inss-nota-char-counter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--inss-text-muted);
+}
+
+.inss-nota-char-counter.warning {
+  color: var(--inss-warning-text);
+}
+
+.inss-nota-char-counter.error {
+  color: var(--inss-error-text);
+}
+
+/* ============ COLOR PICKER ============ */
+.inss-nota-color-picker {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+
+.inss-nota-color-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.2s, border-color 0.2s;
+  box-shadow: 0 1px 3px var(--inss-shadow-sm);
+}
+
+.inss-nota-color-dot:hover {
+  transform: scale(1.15);
+}
+
+.inss-nota-color-dot.selected {
+  border-color: #333;
+  box-shadow: 0 0 0 2px rgba(19, 81, 180, 0.3);
+}
+
+/* ============ TAG PICKER ============ */
+.inss-nota-tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.inss-nota-tag-option {
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.1s, opacity 0.2s;
+}
+
+.inss-nota-tag-option:hover {
+  transform: scale(1.05);
+}
+
+.inss-nota-tag-option.selected {
+  border-color: #333;
+  opacity: 1;
+}
+
+.inss-nota-tag-option:not(.selected) {
+  opacity: 0.6;
+}
+
+/* ============ COLOR POPUP ============ */
+.inss-nota-color-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--inss-bg-primary);
+  border: 1px solid var(--inss-border-color);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  box-shadow: 0 2px 10px var(--inss-shadow-md);
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.inss-nota-color-popup .inss-nota-color-dot {
+  width: 28px;
+  height: 28px;
+}
+
+/* ============ BOTÕES DO EDITOR ============ */
+.inss-nota-editor-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.inss-nota-btn-save,
+.inss-nota-btn-cancel {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.inss-nota-btn-save {
+  background: var(--inss-accent-primary);
+  color: #fff;
+}
+
+.inss-nota-btn-save:hover {
+  background: var(--inss-accent-secondary);
+  transform: scale(1.02);
+}
+
+.inss-nota-btn-cancel {
+  background: var(--inss-bg-tertiary);
+  color: var(--inss-text-primary);
+}
+
+.inss-nota-btn-cancel:hover {
+  background: var(--inss-border-color);
+}
+
+/* ============ TOAST NOTIFICATIONS ============ */
+.inss-toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.inss-toast {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px var(--inss-shadow-md);
+  animation: inss-toast-slide-in 0.3s ease, inss-toast-fade-out 0.3s ease 2.7s forwards;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.inss-toast-success {
+  background: var(--inss-success-bg);
+  color: var(--inss-success-text);
+}
+
+.inss-toast-error {
+  background: var(--inss-error-bg);
+  color: var(--inss-error-text);
+}
+
+.inss-toast-warning {
+  background: var(--inss-warning-bg);
+  color: var(--inss-warning-text);
+}
+
+@keyframes inss-toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes inss-toast-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* ============ PREVIEW TOOLTIP ============ */
+.inss-nota-preview {
+  position: absolute;
+  background: var(--inss-bg-primary);
+  border: 1px solid var(--inss-border-color);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px var(--inss-shadow-md);
+  z-index: 9999;
+  max-width: 300px;
+  min-width: 200px;
+  animation: inss-nota-fadeIn 0.2s ease;
+}
+
+.inss-nota-preview-header {
+  font-weight: 600;
+  color: var(--inss-accent-primary);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--inss-border-color);
+}
+
+.inss-nota-preview-text {
+  color: var(--inss-text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.inss-nota-preview-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--inss-border-color);
+  font-size: 10px;
+  color: var(--inss-text-muted);
+}
+
+/* ============ FLOATING WIDGET ============ */
+.inss-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9998;
+}
+
+.inss-widget-toggle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--inss-accent-primary) 0%, var(--inss-accent-secondary) 100%);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px var(--inss-shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.inss-widget-toggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px var(--inss-shadow-md);
+}
+
+.inss-widget-panel {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 300px;
+  background: var(--inss-bg-primary);
+  border: 1px solid var(--inss-border-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px var(--inss-shadow-md);
+  display: none;
+  overflow: hidden;
+}
+
+.inss-widget.active .inss-widget-panel {
+  display: block;
+  animation: inss-nota-fadeIn 0.2s ease;
+}
+
+.inss-widget-header {
+  background: linear-gradient(135deg, var(--inss-accent-primary) 0%, var(--inss-accent-secondary) 100%);
+  color: #fff;
+  padding: 12px 16px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inss-widget-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.inss-widget-close:hover {
+  opacity: 1;
+}
+
+.inss-widget-content {
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.inss-widget-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--inss-text-muted);
+  font-size: 12px;
+}
+
+.inss-widget-note {
+  background: var(--inss-bg-secondary);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.inss-widget-note:hover {
+  background: var(--inss-bg-tertiary);
+  transform: translateX(2px);
+}
+
+.inss-widget-note:last-child {
+  margin-bottom: 0;
+}
+
+.inss-widget-note-protocolo {
+  font-weight: 600;
+  color: var(--inss-accent-primary);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.inss-widget-note-text {
+  font-size: 11px;
+  color: var(--inss-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inss-widget-footer {
+  padding: 12px;
+  border-top: 1px solid var(--inss-border-color);
+}
+
+.inss-widget-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--inss-accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.inss-widget-btn:hover {
+  background: var(--inss-accent-secondary);
+}
+
+/* ============ COMPACT MODE ============ */
+.inss-nota-compact .inss-nota-sticky {
+  padding: 4px 8px;
+  max-width: 120px;
+}
+
+.inss-nota-compact .inss-nota-header {
+  margin-bottom: 0;
+}
+
+.inss-nota-compact .inss-nota-text {
+  display: none;
+}
+
+.inss-nota-compact .inss-nota-tags {
+  display: none;
+}
+
+.inss-nota-compact:hover .inss-nota-text,
+.inss-nota-compact:hover .inss-nota-tags {
+  display: block;
+}
+
+.inss-nota-compact:hover .inss-nota-sticky {
+  max-width: 220px;
+  z-index: 100;
+}
+
+/* ============ CONFIRMATION OVERLAY ============ */
+.inss-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  animation: inss-nota-fadeIn 0.2s ease;
+}
+
+.inss-confirm-modal {
+  background: var(--inss-bg-primary);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 4px 20px var(--inss-shadow-md);
+}
+
+.inss-confirm-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.inss-confirm-message {
+  font-size: 14px;
+  color: var(--inss-text-primary);
+  margin-bottom: 8px;
+}
+
+.inss-confirm-sub {
+  font-size: 12px;
+  color: var(--inss-text-muted);
+  margin-bottom: 20px;
+}
+
+.inss-confirm-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.inss-confirm-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.inss-confirm-btn-cancel {
+  background: var(--inss-bg-tertiary);
+  color: var(--inss-text-primary);
+}
+
+.inss-confirm-btn-cancel:hover {
+  background: var(--inss-border-color);
+}
+
+.inss-confirm-btn-ok {
+  background: #dc3545;
+  color: #fff;
+}
+
+.inss-confirm-btn-ok:hover {
+  background: #c82333;
+}
+
+/* ============ RESPONSIVIDADE ============ */
+@media (max-width: 768px) {
+  .inss-nota-sticky {
+    max-width: 180px;
+    font-size: 11px;
+  }
+
+  .inss-nota-editor {
+    max-width: 220px;
+  }
+
+  .inss-widget-panel {
+    width: 280px;
+    right: -10px;
+  }
+}
+
+/* ============ ACESSIBILIDADE ============ */
+.inss-nota-btn:focus-visible,
+.inss-nota-add-btn:focus-visible,
+.inss-nota-textarea:focus-visible,
+.inss-nota-btn-save:focus-visible,
+.inss-nota-btn-cancel:focus-visible,
+.inss-widget-toggle:focus-visible {
+  outline: 2px solid var(--inss-accent-primary);
+  outline-offset: 2px;
+}
+
+.inss-nota-color-dot:focus-visible {
+  outline: 2px solid var(--inss-accent-primary);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+/* ============ PRINT STYLES ============ */
+@media print {
+
+  .inss-widget,
+  .inss-toast-container {
+    display: none !important;
+  }
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Fundo -->
+  <rect width="48" height="48" rx="8" fill="#f5f5f5"/>
+
+  <!-- Post-it amarelo -->
+  <rect x="8" y="6" width="32" height="32" fill="#fff8c6" rx="2"/>
+
+  <!-- Dobra do post-it -->
+  <path d="M40 38 L40 38 L32 38 L40 30 Z" fill="#f3e58d"/>
+
+  <!-- Linhas de texto -->
+  <line x1="12" y1="14" x2="36" y2="14" stroke="#888" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="12" y1="20" x2="36" y2="20" stroke="#888" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="12" y1="26" x2="28" y2="26" stroke="#888" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

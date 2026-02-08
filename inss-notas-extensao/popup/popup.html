@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NotasPat - Notas Adesivas</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="popup-header-left">
+        <h1>📝 NotasPat</h1>
+        <span class="subtitle">Notas Adesivas para Tarefas</span>
+      </div>
+      <button id="themeToggle" class="theme-toggle" title="Alternar tema">
+        🌙
+      </button>
+    </header>
+
+    <!-- Estatísticas -->
+    <div id="statsSection" class="stats-section">
+      <div class="stats-toggle" id="statsToggle">
+        <span>📊 Estatísticas</span>
+        <span class="stats-toggle-icon">▼</span>
+      </div>
+      <div class="stats-content">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-label">Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statWeek">0</div>
+            <div class="stat-label">Esta Semana</div>
+          </div>
+        </div>
+        <div class="color-stats" id="colorStats"></div>
+      </div>
+    </div>
+
+    <!-- Busca -->
+    <div class="search-section">
+      <input
+        type="text"
+        id="searchInput"
+        class="search-input"
+        placeholder="🔍 Buscar por protocolo ou texto..."
+      />
+    </div>
+
+    <!-- Filtros -->
+    <div class="filters-section">
+      <select id="filterOrder" class="filter-select" title="Ordenar por">
+        <option value="date-desc">📅 Mais recente</option>
+        <option value="date-asc">📅 Mais antigo</option>
+        <option value="protocolo">🔢 Protocolo</option>
+      </select>
+      <select id="filterColor" class="filter-select" title="Filtrar por cor">
+        <option value="all">🎨 Todas as cores</option>
+        <option value="#fff8c6">🟡 Amarelo</option>
+        <option value="#c6f8cf">🟢 Verde</option>
+        <option value="#c6e5f8">🔵 Azul</option>
+        <option value="#f8c6d4">🔴 Rosa</option>
+        <option value="#f8e0c6">🟠 Laranja</option>
+        <option value="#e0c6f8">🟣 Roxo</option>
+      </select>
+      <select id="filterTag" class="filter-select" title="Filtrar por tag">
+        <option value="all">🏷️ Todas as tags</option>
+        <option value="urgente">🔴 Urgente</option>
+        <option value="pendencia">🟡 Pendência</option>
+        <option value="lembrete">🔵 Lembrete</option>
+        <option value="concluido">🟢 Concluído</option>
+      </select>
+    </div>
+
+    <!-- Contador -->
+    <div class="counter-section">
+      <span id="counterText">Carregando...</span>
+    </div>
+
+    <!-- Lista de Notas -->
+    <div class="notes-list" id="notesList">
+      <div class="empty-state">
+        <p>Nenhuma nota salva ainda.</p>
+        <small>Clique em "📝 Nota" na página de tarefas para adicionar.</small>
+      </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="actions-section">
+      <button id="btnExport" class="btn-action" title="Exportar notas">
+        📤 Exportar
+      </button>
+      <button id="btnImport" class="btn-action" title="Importar notas">
+        📥 Importar
+      </button>
+      <input type="file" id="fileInput" accept=".json" style="display: none;">
+    </div>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <span class="version">v1.2.0</span>
+      <span class="shortcuts-hint">Ctrl+Shift+N: Nova nota</span>
+    </footer>
+  </div>
+
+  <!-- Modal de Edição -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Editar Nota</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="editProtocolo">Protocolo</label>
+          <input type="text" id="editProtocolo" readonly>
+        </div>
+        <div class="form-group">
+          <label for="editText">Texto da Nota</label>
+          <div class="templates-dropdown" id="templatesDropdown">
+            <button type="button" class="btn-action" id="btnTemplates" style="margin-bottom: 8px; width: 100%;">
+              📋 Usar Template
+            </button>
+            <div class="templates-list" id="templatesList"></div>
+          </div>
+          <textarea id="editText" rows="4" maxlength="500" placeholder="Digite sua nota aqui..."></textarea>
+          <div class="char-counter" id="charCounter">0/500</div>
+        </div>
+        <div class="form-group">
+          <label>Tags</label>
+          <div class="tags-container" id="editTags"></div>
+          <div class="tags-container" id="availableTags" style="margin-top: 8px;">
+            <span class="tag tag-urgente" data-tag="urgente">+ Urgente</span>
+            <span class="tag tag-pendencia" data-tag="pendencia">+ Pendência</span>
+            <span class="tag tag-lembrete" data-tag="lembrete">+ Lembrete</span>
+            <span class="tag tag-concluido" data-tag="concluido">+ Concluído</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Cor</label>
+          <div class="color-picker" id="editColorPicker"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modalCancel" class="btn-secondary">Cancelar</button>
+        <button id="modalSave" class="btn-primary">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação -->
+  <div id="confirmModal" class="modal">
+    <div class="modal-content confirm-modal">
+      <div class="modal-body">
+        <div class="confirm-icon" id="confirmIcon">⚠️</div>
+        <div class="confirm-message" id="confirmMessage">Tem certeza?</div>
+        <div class="confirm-sub" id="confirmSub"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="confirmCancel" class="btn-secondary">Cancelar</button>
+        <button id="confirmOk" class="btn-danger">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Templates -->
+  <div id="templatesModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Gerenciar Templates</h2>
+        <button class="modal-close" id="templatesModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="newTemplateName">Nome do Template</label>
+          <input type="text" id="newTemplateName" placeholder="Ex: Aguardando documentação">
+        </div>
+        <div class="form-group">
+          <label for="newTemplateText">Texto</label>
+          <textarea id="newTemplateText" rows="3" placeholder="Texto do template..."></textarea>
+        </div>
+        <button id="btnAddTemplate" class="btn-primary" style="width: 100%; margin-bottom: 16px;">
+          ➕ Adicionar Template
+        </button>
+        <div id="savedTemplates"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../lib/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
