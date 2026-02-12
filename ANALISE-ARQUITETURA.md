@@ -107,11 +107,11 @@ Armazenar cada nota individualmente com prefixo `note_<protocolo>` em vez de um 
 - [ ] Atualizar `importNotes()` para gravar no novo formato
 - [ ] Testar migracao com dados existentes sem perda
 
-### 2. Debounce na busca do Popup (ALTO)
+### 2. Debounce na busca do Popup (IMPLEMENTADO)
 
-- [ ] Criar funcao utilitaria `debounce(fn, delay)` em `popup.js`
-- [ ] Aplicar debounce de 300ms ao listener do `searchInput` (`popup.js:167`)
-- [ ] Aplicar debounce aos filtros `filterOrder`, `filterColor`, `filterTag` (`popup.js:170-172`)
+- [x] Criar funcao utilitaria `debounce(fn, delay)` em `popup.js`
+- [x] Aplicar debounce de 300ms ao listener do `searchInput`
+- [x] Aplicar debounce de 150ms aos filtros `filterOrder`, `filterColor`, `filterTag`
 - [ ] Testar que a busca continua responsiva mas sem re-renders excessivos
 
 ### 3. Paginacao no Popup (ALTO)

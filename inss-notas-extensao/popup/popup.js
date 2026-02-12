@@ -84,6 +84,16 @@ const confirmSub = document.getElementById('confirmSub');
 const confirmCancel = document.getElementById('confirmCancel');
 const confirmOk = document.getElementById('confirmOk');
 
+// ============ UTILIDADES - DEBOUNCE ============
+
+function debounce(fn, delay) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
 // ============ ESTADO ============
 
 let notasData = {};
@@ -94,6 +104,10 @@ let currentEditProtocolo = null;
 let currentConfirmCallback = null;
 let isDarkTheme = false;
 let draggedItem = null;
+
+// Funções com debounce para busca e filtros
+const debouncedRenderFromSearch = debounce(renderNotes, 300);
+const debouncedRenderFromFilter = debounce(renderNotes, 150);
 
 // ============ INICIALIZAÇÃO ============
 
@@ -183,13 +197,13 @@ function setupEventListeners() {
   // Tema
   themeToggle.addEventListener('click', toggleTheme);
 
-  // Busca
-  searchInput.addEventListener('input', renderNotes);
+  // Busca (com debounce de 300ms para evitar re-renders a cada tecla)
+  searchInput.addEventListener('input', debouncedRenderFromSearch);
 
-  // Filtros
-  filterOrder.addEventListener('change', renderNotes);
-  filterColor.addEventListener('change', renderNotes);
-  filterTag.addEventListener('change', renderNotes);
+  // Filtros (com debounce de 150ms)
+  filterOrder.addEventListener('change', debouncedRenderFromFilter);
+  filterColor.addEventListener('change', debouncedRenderFromFilter);
+  filterTag.addEventListener('change', debouncedRenderFromFilter);
 
   // Estatísticas
   statsToggle.addEventListener('click', () => {
