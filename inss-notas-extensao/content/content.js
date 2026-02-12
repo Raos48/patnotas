@@ -52,7 +52,7 @@ function getProtocoloFromRow(tr) {
 
   const protocolo = tds[2].textContent.trim();
 
-  if (/^\d{7,}$/.test(protocolo)) {
+  if (/^\d{5,11}$/.test(protocolo)) {
     return protocolo;
   }
 
