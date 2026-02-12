@@ -124,13 +124,13 @@ Armazenar cada nota individualmente com prefixo `note_<protocolo>` em vez de um 
 - [ ] Resetar `currentPage` quando filtros ou busca mudam
 - [ ] Testar com 500+ notas simuladas
 
-### 4. Alarmes inteligentes (CRITICO)
+### 4. Alarmes inteligentes (IMPLEMENTADO)
 
-- [ ] Remover `clearAll()` de `setupReminders()` no `background.js`
-- [ ] No listener `chrome.storage.onChanged`, comparar `oldValue` vs `newValue` para identificar apenas as notas que mudaram
-- [ ] Para nota adicionada/alterada: criar ou atualizar apenas o alarme dessa nota
-- [ ] Para nota removida: limpar apenas o alarme dessa nota
-- [ ] Manter `setupReminders()` completo apenas para o evento `onInstalled` (inicializacao)
+- [x] Manter `setupReminders()` com `clearAll()` apenas para o evento `onInstalled` (inicializacao completa)
+- [x] No listener `chrome.storage.onChanged`, substituir `setupReminders()` por `handleRemindersChanged(change)`
+- [x] Comparar `oldValue` vs `newValue` para identificar apenas as notas que mudaram
+- [x] Para nota adicionada/alterada: criar ou atualizar apenas o alarme dessa nota
+- [x] Para nota removida: limpar apenas o alarme dessa nota
 - [ ] Testar que lembretes continuam funcionando corretamente apos a mudanca
 
 ### 5. Arquivamento automatico (MEDIO)

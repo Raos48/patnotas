@@ -160,15 +160,64 @@ async function updateBadge() {
   }
 }
 
-// Atualizar badge quando storage muda
+// Atualizar badge e alarmes quando storage muda
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes[STORAGE_KEY]) {
     updateBadge();
 
-    // Reconfigurar lembretes se notas mudaram
-    setupReminders();
+    // Atualizar apenas os alarmes das notas que mudaram (em vez de recriar todos)
+    handleRemindersChanged(changes[STORAGE_KEY]);
   }
 });
+
+/**
+ * Compara oldValue vs newValue do storage para atualizar apenas
+ * os alarmes das notas que foram adicionadas, alteradas ou removidas.
+ */
+async function handleRemindersChanged(change) {
+  try {
+    const oldNotes = change.oldValue || {};
+    const newNotes = change.newValue || {};
+    const now = Date.now();
+
+    const allProtocolos = new Set([
+      ...Object.keys(oldNotes),
+      ...Object.keys(newNotes)
+    ]);
+
+    for (const protocolo of allProtocolos) {
+      const oldNota = oldNotes[protocolo];
+      const newNota = newNotes[protocolo];
+      const alarmName = `${ALARM_PREFIX}${protocolo}`;
+
+      if (!newNota && oldNota) {
+        // Nota removida: limpar alarme
+        await chrome.alarms.clear(alarmName);
+        console.log(`[NotasPat] Alarme removido para ${protocolo}`);
+      } else if (newNota) {
+        const oldReminder = oldNota ? oldNota.reminder : null;
+        const newReminder = newNota.reminder;
+
+        // Só atualizar se o lembrete mudou
+        if (oldReminder !== newReminder) {
+          if (newReminder) {
+            const reminderTime = new Date(newReminder).getTime();
+            if (reminderTime > now) {
+              await chrome.alarms.create(alarmName, { when: reminderTime });
+              console.log(`[NotasPat] Alarme atualizado para ${protocolo}`);
+            }
+          } else {
+            // Lembrete removido
+            await chrome.alarms.clear(alarmName);
+            console.log(`[NotasPat] Alarme removido para ${protocolo}`);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[NotasPat] Erro ao atualizar alarmes:', error);
+  }
+}
 
 // ============ MENSAGENS ============
 
