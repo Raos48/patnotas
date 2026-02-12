@@ -1,6 +1,6 @@
 # NotasPat - Notas Adesivas para Tarefas
 
-**Versão:** 1.2.0
+**Versão:** 1.3.0
 **Autor:** Ricardo Alves
 
 ## Descrição
@@ -15,10 +15,13 @@ Extensão Google Chrome que adiciona notas adesivas (sticky notes) às tarefas d
 - Templates de texto pré-definidos
 - Lembretes com notificações do navegador
 - Widget flutuante para acesso rápido
-- Busca e filtro de notas
+- Busca e filtro de notas com debounce
+- Paginação automática para grandes volumes de notas
 - Exportação/importação de notas (JSON)
 - Modo escuro
 - Atalho de teclado (Ctrl+Shift+N)
+- Storage granular otimizado para performance
+- Alerta de volume quando há muitas notas salvas
 
 ## Instalação
 
@@ -85,19 +88,19 @@ Extensão Google Chrome que adiciona notas adesivas (sticky notes) às tarefas d
 
 ```
 inss-notas-extensao/
-├── manifest.json              # Configuração da extensão
-├── icons/                     # Ícones da extensão
+├── manifest.json              # Configuração da extensão (Manifest V3)
+├── icons/                     # Ícones da extensão (16, 48, 128px)
 ├── lib/
-│   └── storage.js            # CRUD para chrome.storage.local
+│   └── storage.js            # CRUD granular para chrome.storage.local
 ├── content/
-│   ├── content.js            # Script principal injetado na página
+│   ├── content.js            # Script injetado na página (observer otimizado + cache seletivo)
 │   └── content.css           # Estilos das notas adesivas
 ├── popup/
 │   ├── popup.html            # Popup do ícone da extensão
-│   ├── popup.js              # Lógica do popup
+│   ├── popup.js              # Lógica do popup (debounce + paginação)
 │   └── popup.css             # Estilos do popup
 └── background/
-    └── background.js         # Service Worker (Manifest V3)
+    └── background.js         # Service Worker (migração + alarmes inteligentes)
 ```
 
 ## Templates Disponíveis
@@ -139,9 +142,13 @@ A extensão vem com 4 templates pré-definidos:
 
 ## Troubleshooting
 
+### Alerta de volume de notas
+
+A partir de 500 notas salvas, a extensão exibe um aviso recomendando excluir notas antigas. Isso ajuda a manter o desempenho ideal.
+
 ### As notas não aparecem após mudar de aba
 
-A extensão usa MutationObserver para detectar mudanças. Se as notas não aparecerem:
+A extensão usa MutationObserver otimizado para detectar mudanças. Se as notas não aparecerem:
 1. Aguarde alguns segundos
 2. Se necessário, recarregue a página (F5)
 
@@ -157,6 +164,16 @@ A extensão usa MutationObserver para detectar mudanças. Se as notas não apare
 2. Verifique se a extensão tem permissão de notificações em `chrome://extensions/`
 
 ## Changelog
+
+### Versão 1.3.0 - Otimização de Performance
+- **Storage granular**: cada nota é armazenada individualmente (`note_<protocolo>`) em vez de um objeto monolítico, eliminando o padrão read-all/write-all
+- **Migração automática**: ao atualizar, as notas do formato antigo são migradas automaticamente para o novo formato sem perda de dados
+- **Alarmes inteligentes**: lembretes são atualizados de forma diferencial (apenas a nota alterada), sem recriar todos os alarmes a cada mudança
+- **Debounce na busca**: busca no popup com debounce de 300ms e filtros com 150ms, evitando re-renders excessivos
+- **Paginação no popup**: notas são exibidas em lotes de 50, com botão "Carregar mais" para volumes grandes
+- **MutationObserver otimizado**: observador prioriza container específico das tarefas, com fallback gradual; ignora mutações geradas pela própria extensão
+- **Cache seletivo de memória**: carrega apenas notas dos protocolos visíveis na página, com lazy loading para linhas dinâmicas
+- **Alerta de volume**: aviso automático quando o número de notas ultrapassa 500, recomendando limpeza
 
 ### Versão 1.2.0
 - Renomeada para "NotasPat"
