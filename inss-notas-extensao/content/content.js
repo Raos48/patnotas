@@ -798,8 +798,25 @@ function startMutationObserver() {
 
     for (const mutation of mutations) {
       if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        // Ignorar mutações causadas pela própria extensão
+        if (mutation.target.closest && mutation.target.closest('.inss-nota-container, .inss-nota-sticky, .inss-widget, .inss-nota-editor, .inss-nota-preview, .inss-nota-toast-container')) {
+          continue;
+        }
+
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
+            // Ignorar elementos da extensão
+            if (node.classList && (
+              node.classList.contains('inss-nota-container') ||
+              node.classList.contains('inss-nota-sticky') ||
+              node.classList.contains('inss-widget') ||
+              node.classList.contains('inss-nota-editor') ||
+              node.classList.contains('inss-nota-preview') ||
+              node.classList.contains('inss-nota-toast-container')
+            )) {
+              continue;
+            }
+
             if (node.tagName === 'TR' || node.tagName === 'TBODY' ||
               node.tagName === 'TABLE' || node.classList?.contains('tab-pane')) {
               hasRelevantMutations = true;
@@ -816,19 +833,36 @@ function startMutationObserver() {
     }
   });
 
+  // Observar #tarefas-container se existir (escopo mais restrito)
   const container = document.getElementById('tarefas-container');
   if (container) {
     mainObserver.observe(container, {
       childList: true,
       subtree: true
     });
+    return mainObserver;
   }
 
-  // Also observe body for dynamic content
-  mainObserver.observe(document.body, {
-    childList: true,
-    subtree: true
+  // Fallback: observar os pais diretos das tabelas-alvo
+  const observedParents = new Set();
+  TABLE_IDS.forEach(tableId => {
+    const table = document.getElementById(tableId);
+    if (table && table.parentElement && !observedParents.has(table.parentElement)) {
+      observedParents.add(table.parentElement);
+      mainObserver.observe(table.parentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
   });
+
+  // Se nenhuma tabela existe ainda, observar body mas apenas childList direto
+  if (observedParents.size === 0) {
+    mainObserver.observe(document.body, {
+      childList: true,
+      subtree: false
+    });
+  }
 
   return mainObserver;
 }

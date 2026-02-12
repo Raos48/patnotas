@@ -144,12 +144,13 @@ Cada nota armazenada individualmente com prefixo `note_<protocolo>` em vez de um
 - [ ] Executar verificacao periodica via alarme no background (ex: 1x por dia)
 - [ ] Excluir notas arquivadas da contagem do badge e das estatisticas ativas
 
-### 6. MutationObserver otimizado (MEDIO)
+### 6. MutationObserver otimizado (IMPLEMENTADO)
 
-- [ ] Remover o observer generico de `document.body` (`content.js:821-823`)
-- [ ] Manter apenas o observer em `#tarefas-container` (`content.js:812-818`)
-- [ ] Adicionar fallback: se `#tarefas-container` nao existir, observar apenas os pais diretos das tabelas-alvo
-- [ ] Filtrar mutacoes de forma mais restritiva (ignorar mudancas em elementos que a propria extensao criou)
+- [x] Remover o observer generico de `document.body` com `subtree: true`
+- [x] Manter observer em `#tarefas-container` como primeira opcao (retorna imediatamente se encontrar)
+- [x] Fallback: observar pais diretos das tabelas-alvo se `#tarefas-container` nao existir
+- [x] Fallback final: observar `document.body` apenas com `childList: true` (sem subtree)
+- [x] Filtrar mutacoes: ignorar elementos criados pela extensao (`.inss-nota-*`, `.inss-widget`, etc.)
 - [ ] Testar que a extensao continua detectando novas linhas em todas as tabelas
 
 ### 7. Otimizacao de memoria do cache (BAIXO)
