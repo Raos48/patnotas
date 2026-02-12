@@ -22,6 +22,18 @@
       </button>
     </header>
 
+    <!-- Alerta de desempenho -->
+    <div id="storageWarning" class="storage-warning" style="display: none;">
+      <div class="storage-warning-content">
+        <span class="storage-warning-icon">&#9888;</span>
+        <div class="storage-warning-text">
+          <strong>Atenção: muitas notas salvas!</strong>
+          <p id="storageWarningMessage"></p>
+        </div>
+        <button id="storageWarningDismiss" class="storage-warning-dismiss" title="Fechar">&times;</button>
+      </div>
+    </div>
+
     <!-- Estatísticas -->
     <div id="statsSection" class="stats-section">
       <div class="stats-toggle" id="statsToggle">

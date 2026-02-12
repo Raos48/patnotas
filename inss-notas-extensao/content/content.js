@@ -629,6 +629,13 @@ function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
 
     showToast('Nota salva com sucesso!', 'success');
     updateWidgetContent();
+
+    // Verificar saude do storage
+    checkStorageHealth().then(health => {
+      if (!health.ok && health.warning) {
+        showToast(health.warning, 'warning');
+      }
+    });
   }).catch(err => {
     console.error('Erro ao salvar nota:', err);
     showToast('Erro ao salvar nota', 'error');

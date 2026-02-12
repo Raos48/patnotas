@@ -71,6 +71,11 @@ const newTemplateText = document.getElementById('newTemplateText');
 const btnAddTemplate = document.getElementById('btnAddTemplate');
 const savedTemplates = document.getElementById('savedTemplates');
 
+// Alerta de Storage
+const storageWarning = document.getElementById('storageWarning');
+const storageWarningMessage = document.getElementById('storageWarningMessage');
+const storageWarningDismiss = document.getElementById('storageWarningDismiss');
+
 // Modal de Confirmação
 const confirmModal = document.getElementById('confirmModal');
 const confirmIcon = document.getElementById('confirmIcon');
@@ -140,10 +145,25 @@ async function loadNotes() {
     updateCounter();
     renderNotes();
     updateStatistics();
+    await verifyStorageHealth();
   } catch (error) {
     console.error('Erro ao carregar notas:', error);
     counterText.textContent = 'Erro ao carregar';
     showToast('Erro ao carregar notas', 'error');
+  }
+}
+
+async function verifyStorageHealth() {
+  try {
+    const health = await checkStorageHealth();
+    if (!health.ok && health.warning) {
+      storageWarningMessage.textContent = health.warning;
+      storageWarning.style.display = 'block';
+    } else {
+      storageWarning.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Erro ao verificar storage:', error);
   }
 }
 
@@ -239,6 +259,11 @@ function setupEventListeners() {
   });
   confirmModal.addEventListener('click', (e) => {
     if (e.target === confirmModal) closeConfirmModal();
+  });
+
+  // Alerta de storage
+  storageWarningDismiss.addEventListener('click', () => {
+    storageWarning.style.display = 'none';
   });
 
   // Atalhos de teclado
@@ -623,6 +648,7 @@ async function saveEditedNote() {
     updateStatistics();
     closeEditModal();
     showToast('Nota salva com sucesso!', 'success');
+    await verifyStorageHealth();
   } catch (error) {
     console.error('Erro ao salvar nota:', error);
     showToast('Erro ao salvar nota. Tente novamente.', 'error');
@@ -800,6 +826,7 @@ async function doImport(file) {
     await importNotes(text);
     await loadNotes();
     showToast('Notas importadas com sucesso!', 'success');
+    await verifyStorageHealth();
   } catch (error) {
     console.error('Erro ao importar notas:', error);
     showToast('Erro ao importar. Verifique o arquivo.', 'error');

@@ -272,6 +272,25 @@ function countNotes() {
 }
 
 /**
+ * Verifica a saude do storage e retorna alertas se necessario
+ * @returns {Promise<Object>} { ok: boolean, count: number, warning: string|null }
+ */
+function checkStorageHealth() {
+  return new Promise((resolve, reject) => {
+    getAllNotes().then(notes => {
+      const count = Object.keys(notes).length;
+      let warning = null;
+
+      if (count >= 500) {
+        warning = `Voce possui ${count} notas salvas. Para manter o bom desempenho da extensao, considere excluir notas de tarefas ja concluidas.`;
+      }
+
+      resolve({ ok: count < 500, count, warning });
+    }).catch(reject);
+  });
+}
+
+/**
  * Busca notas por texto ou protocolo
  * @param {string} query - Termo de busca
  * @returns {Promise<Object>} Notas encontradas
