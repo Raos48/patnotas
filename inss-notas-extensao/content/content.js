@@ -52,7 +52,7 @@ function getProtocoloFromRow(tr) {
 
   const protocolo = tds[2].textContent.trim();
 
-  if (/^\d{9,}$/.test(protocolo)) {
+  if (/^\d{7,}$/.test(protocolo)) {
     return protocolo;
   }
 
@@ -737,6 +737,10 @@ function processRow(tr) {
   let innerDiv = tdInteressado.querySelector('div');
   if (!innerDiv) {
     innerDiv = document.createElement('div');
+    // Mover conteúdo existente (ex: botão "Interessados") para dentro do wrapper
+    while (tdInteressado.firstChild) {
+      innerDiv.appendChild(tdInteressado.firstChild);
+    }
     tdInteressado.appendChild(innerDiv);
   }
 
