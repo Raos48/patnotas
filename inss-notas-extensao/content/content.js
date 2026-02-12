@@ -288,11 +288,20 @@ function createWidget() {
   updateWidgetContent();
 }
 
-function updateWidgetContent() {
+async function updateWidgetContent() {
   const content = document.getElementById('widgetContent');
   if (!content) return;
 
-  const notes = Object.entries(notasCache);
+  // Buscar todas as notas do storage (widget mostra notas recentes globais)
+  let allNotes;
+  try {
+    allNotes = await getAllNotes();
+  } catch (err) {
+    console.error('[NotasPat] Erro ao carregar notas do widget:', err);
+    allNotes = notasCache;
+  }
+
+  const notes = Object.entries(allNotes).filter(([, nota]) => nota !== null);
 
   if (notes.length === 0) {
     content.innerHTML = '<div class="inss-widget-empty">Nenhuma nota salva</div>';
@@ -727,7 +736,26 @@ function deleteNoteHandler(container, protocolo) {
 
 // ============ PROCESSAMENTO DE TABELAS ============
 
-function processRow(tr) {
+/**
+ * Coleta todos os protocolos visíveis nas tabelas da página
+ * @returns {string[]} Array de protocolos únicos
+ */
+function collectVisibleProtocolos() {
+  const protocolos = new Set();
+  TABLE_IDS.forEach(tableId => {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const protocolo = getProtocoloFromRow(tr);
+      if (protocolo) protocolos.add(protocolo);
+    });
+  });
+  return Array.from(protocolos);
+}
+
+async function processRow(tr) {
   if (isRowProcessed(tr)) return;
 
   const tds = tr.querySelectorAll('td');
@@ -741,10 +769,22 @@ function processRow(tr) {
   const tdInteressado = getInteressadoTD(tr);
   if (!tdInteressado) return;
 
+  // Lazy load: se não está no cache, buscar individualmente do storage
+  if (!(protocolo in notasCache)) {
+    try {
+      const nota = await getNote(protocolo);
+      notasCache[protocolo] = nota; // null se não existir
+    } catch (err) {
+      console.error(`[NotasPat] Erro ao carregar nota ${protocolo}:`, err);
+    }
+  }
+
+  // Verificar novamente se a row já foi processada (pode ter sido processada durante o await)
+  if (isRowProcessed(tr)) return;
+
   let innerDiv = tdInteressado.querySelector('div');
   if (!innerDiv) {
     innerDiv = document.createElement('div');
-    // Mover conteúdo existente (ex: botão "Interessados") para dentro do wrapper
     while (tdInteressado.firstChild) {
       innerDiv.appendChild(tdInteressado.firstChild);
     }
@@ -958,9 +998,10 @@ async function init() {
     // Sync theme
     await syncTheme();
 
-    // Load notes
-    notasCache = await getAllNotes();
-    console.log('[NotasPat] Notas carregadas:', Object.keys(notasCache).length);
+    // Carregar apenas notas dos protocolos visíveis na página (em vez de todas)
+    const visibleProtocolos = collectVisibleProtocolos();
+    notasCache = await getNotesForProtocolos(visibleProtocolos);
+    console.log(`[NotasPat] Notas carregadas: ${Object.keys(notasCache).length} de ${visibleProtocolos.length} protocolos visíveis`);
 
     // Check domain
     if (!window.location.href.includes('atendimento.inss.gov.br')) {

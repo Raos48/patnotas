@@ -153,12 +153,16 @@ Cada nota armazenada individualmente com prefixo `note_<protocolo>` em vez de um
 - [x] Filtrar mutacoes: ignorar elementos criados pela extensao (`.inss-nota-*`, `.inss-widget`, etc.)
 - [ ] Testar que a extensao continua detectando novas linhas em todas as tabelas
 
-### 7. Otimizacao de memoria do cache (BAIXO)
+### 7. Otimizacao de memoria do cache (IMPLEMENTADO)
 
-- [ ] No content script, carregar para `notasCache` apenas as notas dos protocolos visiveis na pagina atual
-- [ ] Implementar lazy loading: ao encontrar um protocolo na tabela, verificar cache primeiro, depois storage individual
-- [ ] No popup, manter `notasData` mas implementar paginacao (item 3) para limitar o DOM
-- [ ] Considerar LRU cache com limite maximo (ex: 200 notas em memoria)
+- [x] `collectVisibleProtocolos()` coleta protocolos visiveis nas tabelas da pagina
+- [x] `getNotesForProtocolos()` em storage.js faz batch-get apenas das chaves necessarias
+- [x] Init carrega apenas notas dos protocolos visiveis (em vez de `getAllNotes()`)
+- [x] `processRow()` faz lazy loading: verifica cache primeiro, busca individual do storage se necessario
+- [x] Re-check de `isRowProcessed()` apos await para evitar duplicacao
+- [x] Widget busca todas as notas do storage apenas quando aberto (lazy)
+- [x] Popup usa paginacao (item 3) para limitar o DOM
+- [ ] Testar que notas continuam aparecendo corretamente em todas as tabelas
 
 ### 8. Alerta de volume de notas (IMPLEMENTADO)
 

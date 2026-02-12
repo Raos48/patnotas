@@ -51,6 +51,33 @@ function getNote(protocolo) {
 }
 
 /**
+ * Retorna notas para uma lista de protocolos (batch-get eficiente)
+ * @param {string[]} protocolos - Array de números de protocolo
+ * @returns {Promise<Object>} Objeto com notas encontradas { protocolo: nota }
+ */
+function getNotesForProtocolos(protocolos) {
+  if (!protocolos || protocolos.length === 0) {
+    return Promise.resolve({});
+  }
+  const keys = protocolos.map(p => NOTE_PREFIX + p);
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(keys, (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      const notes = {};
+      for (const key of Object.keys(result)) {
+        if (key.startsWith(NOTE_PREFIX)) {
+          notes[key.substring(NOTE_PREFIX.length)] = result[key];
+        }
+      }
+      resolve(notes);
+    });
+  });
+}
+
+/**
  * Cria ou atualiza uma nota (escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string} text - Texto da nota
