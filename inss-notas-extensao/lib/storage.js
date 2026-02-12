@@ -1,47 +1,57 @@
 /**
  * Módulo de Persistência - NotasPat
  * CRUD para chrome.storage.local
- * Versão 1.2.0 - Com suporte a tags e lembretes
+ * Versão 1.3.0 - Storage granular (chave individual por nota)
+ *
+ * Formato: cada nota é armazenada como { "note_<protocolo>": { ...dados } }
+ * Isso evita o padrão read-all/write-all que degradava com muitas notas.
  */
 
-const STORAGE_KEY = 'notes';
+const NOTE_PREFIX = 'note_';
 
 /**
- * Retorna todas as notas do storage
- * @returns {Promise<Object>} Objeto com todas as notas
+ * Retorna todas as notas do storage (filtra por prefixo note_)
+ * @returns {Promise<Object>} Objeto com todas as notas { protocolo: nota }
  */
 function getAllNotes() {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
+    chrome.storage.local.get(null, (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
-      } else {
-        resolve(result[STORAGE_KEY] || {});
+        return;
       }
+      const notes = {};
+      for (const key of Object.keys(result)) {
+        if (key.startsWith(NOTE_PREFIX)) {
+          const protocolo = key.substring(NOTE_PREFIX.length);
+          notes[protocolo] = result[key];
+        }
+      }
+      resolve(notes);
     });
   });
 }
 
 /**
- * Retorna nota de um protocolo específico
+ * Retorna nota de um protocolo específico (leitura individual)
  * @param {string} protocolo - Número do protocolo
  * @returns {Promise<Object|null>} Nota encontrada ou null
  */
 function getNote(protocolo) {
+  const key = NOTE_PREFIX + protocolo;
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
+    chrome.storage.local.get([key], (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
       } else {
-        const notes = result[STORAGE_KEY] || {};
-        resolve(notes[protocolo] || null);
+        resolve(result[key] || null);
       }
     });
   });
 }
 
 /**
- * Cria ou atualiza uma nota
+ * Cria ou atualiza uma nota (escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string} text - Texto da nota
  * @param {string} color - Cor da nota (hex)
@@ -50,10 +60,17 @@ function getNote(protocolo) {
  * @returns {Promise<Object>} Nota salva
  */
 function saveNote(protocolo, text, color, tags = [], reminder = null) {
+  const key = NOTE_PREFIX + protocolo;
   return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
+    // Ler apenas esta nota para preservar createdAt
+    chrome.storage.local.get([key], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      const existing = result[key];
       const now = new Date().toISOString();
-      const isUpdate = notes[protocolo] !== undefined;
 
       const note = {
         id: protocolo,
@@ -61,126 +78,132 @@ function saveNote(protocolo, text, color, tags = [], reminder = null) {
         color: color || '#fff8c6',
         tags: tags || [],
         reminder: reminder,
-        createdAt: isUpdate ? notes[protocolo].createdAt : now,
+        createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
 
-      notes[protocolo] = note;
-
-      chrome.storage.local.set({ [STORAGE_KEY]: notes }, () => {
+      chrome.storage.local.set({ [key]: note }, () => {
         if (chrome.runtime.lastError) {
           reject(chrome.runtime.lastError);
         } else {
           resolve(note);
         }
       });
-    }).catch(reject);
+    });
   });
 }
 
 /**
- * Remove uma nota pelo protocolo
+ * Remove uma nota pelo protocolo (remoção direta da chave)
  * @param {string} protocolo - Número do protocolo
  * @returns {Promise<boolean>} True se removeu com sucesso
  */
 function deleteNote(protocolo) {
+  const key = NOTE_PREFIX + protocolo;
   return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
-      if (notes[protocolo]) {
-        delete notes[protocolo];
-
-        chrome.storage.local.set({ [STORAGE_KEY]: notes }, () => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve(true);
-          }
-        });
+    chrome.storage.local.remove(key, () => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
       } else {
-        resolve(false);
+        resolve(true);
       }
-    }).catch(reject);
+    });
   });
 }
 
 /**
- * Altera apenas a cor de uma nota
+ * Altera apenas a cor de uma nota (leitura/escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string} color - Nova cor (hex)
  * @returns {Promise<Object>} Nota atualizada
  */
 function updateNoteColor(protocolo, color) {
+  const key = NOTE_PREFIX + protocolo;
   return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
-      if (notes[protocolo]) {
-        notes[protocolo].color = color;
-        notes[protocolo].updatedAt = new Date().toISOString();
-
-        chrome.storage.local.set({ [STORAGE_KEY]: notes }, () => {
+    chrome.storage.local.get([key], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      const note = result[key];
+      if (note) {
+        note.color = color;
+        note.updatedAt = new Date().toISOString();
+        chrome.storage.local.set({ [key]: note }, () => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
-            resolve(notes[protocolo]);
+            resolve(note);
           }
         });
       } else {
         resolve(null);
       }
-    }).catch(reject);
+    });
   });
 }
 
 /**
- * Atualiza as tags de uma nota
+ * Atualiza as tags de uma nota (leitura/escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string[]} tags - Array de tags
  * @returns {Promise<Object>} Nota atualizada
  */
 function updateNoteTags(protocolo, tags) {
+  const key = NOTE_PREFIX + protocolo;
   return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
-      if (notes[protocolo]) {
-        notes[protocolo].tags = tags;
-        notes[protocolo].updatedAt = new Date().toISOString();
-
-        chrome.storage.local.set({ [STORAGE_KEY]: notes }, () => {
+    chrome.storage.local.get([key], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      const note = result[key];
+      if (note) {
+        note.tags = tags;
+        note.updatedAt = new Date().toISOString();
+        chrome.storage.local.set({ [key]: note }, () => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
-            resolve(notes[protocolo]);
+            resolve(note);
           }
         });
       } else {
         resolve(null);
       }
-    }).catch(reject);
+    });
   });
 }
 
 /**
- * Define um lembrete para uma nota
+ * Define um lembrete para uma nota (leitura/escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string} reminder - Data do lembrete (ISO string)
  * @returns {Promise<Object>} Nota atualizada
  */
 function setNoteReminder(protocolo, reminder) {
+  const key = NOTE_PREFIX + protocolo;
   return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
-      if (notes[protocolo]) {
-        notes[protocolo].reminder = reminder;
-        notes[protocolo].updatedAt = new Date().toISOString();
-
-        chrome.storage.local.set({ [STORAGE_KEY]: notes }, () => {
+    chrome.storage.local.get([key], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      const note = result[key];
+      if (note) {
+        note.reminder = reminder;
+        note.updatedAt = new Date().toISOString();
+        chrome.storage.local.set({ [key]: note }, () => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
-            resolve(notes[protocolo]);
+            resolve(note);
           }
         });
       } else {
         resolve(null);
       }
-    }).catch(reject);
+    });
   });
 }
 
@@ -209,7 +232,7 @@ function exportNotes() {
   return new Promise((resolve, reject) => {
     getAllNotes().then(notes => {
       const exportData = {
-        version: '1.2.0',
+        version: '1.3.0',
         exportDate: new Date().toISOString(),
         notes: notes
       };
@@ -219,7 +242,7 @@ function exportNotes() {
 }
 
 /**
- * Importa notas de JSON string
+ * Importa notas de JSON string (grava cada nota individualmente)
  * @param {string} jsonString - JSON string das notas
  * @returns {Promise<Object>} Objeto com notas importadas
  */
@@ -233,25 +256,26 @@ function importNotes(jsonString) {
         return;
       }
 
-      getAllNotes().then(existingNotes => {
-        // Mesclar notas (importadas sobrescrevem existentes)
-        // Garantir que notas antigas tenham a estrutura nova
-        Object.keys(importData.notes).forEach(key => {
-          const note = importData.notes[key];
-          if (!note.tags) note.tags = [];
-          if (!note.reminder) note.reminder = null;
-        });
+      // Preparar chaves individuais para gravação
+      const keysToSet = {};
+      Object.entries(importData.notes).forEach(([protocolo, note]) => {
+        if (!note.tags) note.tags = [];
+        if (!note.reminder) note.reminder = null;
+        keysToSet[NOTE_PREFIX + protocolo] = note;
+      });
 
-        const mergedNotes = { ...existingNotes, ...importData.notes };
-
-        chrome.storage.local.set({ [STORAGE_KEY]: mergedNotes }, () => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve(mergedNotes);
-          }
-        });
-      }).catch(reject);
+      chrome.storage.local.set(keysToSet, () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          // Retornar as notas importadas no formato { protocolo: nota }
+          const imported = {};
+          Object.entries(importData.notes).forEach(([protocolo, note]) => {
+            imported[protocolo] = note;
+          });
+          resolve(imported);
+        }
+      });
 
     } catch (e) {
       reject(new Error('Erro ao ler arquivo JSON: ' + e.message));

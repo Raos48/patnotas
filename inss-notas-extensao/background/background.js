@@ -1,36 +1,34 @@
 /**
  * Background Service Worker - NotasPat
- * Manifest V3 - Versão 1.2.0
- * Com suporte a notificações e lembretes
+ * Manifest V3 - Versão 1.3.0
+ * Com suporte a notificações, lembretes e storage granular
  */
 
-const STORAGE_KEY = 'notes';
+const NOTE_PREFIX = 'note_';
 const ALARM_PREFIX = 'reminder_';
+const OLD_STORAGE_KEY = 'notes'; // Para migração do formato antigo
 
 // ============ INSTALAÇÃO E ATUALIZAÇÃO ============
 
-chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     // Inicializar storage
-    chrome.storage.local.set({
-      notes: {},
+    await chrome.storage.local.set({
       templates: getDefaultTemplates(),
       theme: 'light'
-    }, () => {
-      console.log('[NotasPat] Storage inicializado');
     });
+    console.log('[NotasPat] Storage inicializado');
   } else if (details.reason === 'update') {
     const previousVersion = details.previousVersion;
     const currentVersion = chrome.runtime.getManifest().version;
-
     console.log(`[NotasPat] Atualizado de v${previousVersion} para v${currentVersion}`);
-
-    // Migração de dados se necessário
-    migrateData(previousVersion, currentVersion);
   }
 
-  // Reconfigurar alarmes
-  setupReminders();
+  // Migrar formato antigo (notes: {}) para granular (note_<protocolo>)
+  await migrateToGranularStorage();
+
+  // Reconfigurar todos os alarmes (apenas na instalação/atualização)
+  await setupReminders();
 });
 
 function getDefaultTemplates() {
@@ -42,43 +40,84 @@ function getDefaultTemplates() {
   ];
 }
 
-async function migrateData(fromVersion, toVersion) {
-  try {
-    const result = await chrome.storage.local.get([STORAGE_KEY]);
-    const notes = result[STORAGE_KEY] || {};
+// ============ MIGRAÇÃO ============
 
-    // Garantir que todas as notas tenham os novos campos
-    let needsUpdate = false;
-    Object.keys(notes).forEach(key => {
-      if (!notes[key].tags) {
-        notes[key].tags = [];
-        needsUpdate = true;
-      }
-      if (notes[key].reminder === undefined) {
-        notes[key].reminder = null;
-        needsUpdate = true;
-      }
+/**
+ * Migra o formato antigo { notes: { protocolo: nota } }
+ * para o formato granular { note_<protocolo>: nota }
+ */
+async function migrateToGranularStorage() {
+  try {
+    const result = await chrome.storage.local.get([OLD_STORAGE_KEY]);
+    const oldNotes = result[OLD_STORAGE_KEY];
+
+    if (!oldNotes || typeof oldNotes !== 'object') return;
+
+    const keys = Object.keys(oldNotes);
+    if (keys.length === 0) {
+      // Objeto vazio, apenas limpar
+      await chrome.storage.local.remove(OLD_STORAGE_KEY);
+      console.log('[NotasPat] Chave antiga removida (vazia)');
+      return;
+    }
+
+    // Gravar cada nota com chave individual
+    const keysToSet = {};
+    keys.forEach(protocolo => {
+      const note = oldNotes[protocolo];
+      // Garantir campos novos
+      if (!note.tags) note.tags = [];
+      if (note.reminder === undefined) note.reminder = null;
+      keysToSet[NOTE_PREFIX + protocolo] = note;
     });
 
-    if (needsUpdate) {
-      await chrome.storage.local.set({ [STORAGE_KEY]: notes });
-      console.log('[NotasPat] Dados migrados com sucesso');
-    }
+    await chrome.storage.local.set(keysToSet);
+
+    // Remover chave antiga
+    await chrome.storage.local.remove(OLD_STORAGE_KEY);
+
+    console.log(`[NotasPat] Migradas ${keys.length} notas para storage granular`);
   } catch (error) {
-    console.error('[NotasPat] Erro na migração:', error);
+    console.error('[NotasPat] Erro na migração para storage granular:', error);
   }
+}
+
+// ============ HELPERS ============
+
+/**
+ * Coleta todas as notas do storage granular
+ */
+async function getAllNotesFromStorage() {
+  const result = await chrome.storage.local.get(null);
+  const notes = {};
+  for (const key of Object.keys(result)) {
+    if (key.startsWith(NOTE_PREFIX)) {
+      const protocolo = key.substring(NOTE_PREFIX.length);
+      notes[protocolo] = result[key];
+    }
+  }
+  return notes;
+}
+
+/**
+ * Lê uma nota individual do storage
+ */
+async function getNoteFromStorage(protocolo) {
+  const key = NOTE_PREFIX + protocolo;
+  const result = await chrome.storage.local.get([key]);
+  return result[key] || null;
 }
 
 // ============ LEMBRETES E ALARMES ============
 
+/**
+ * Reconfigura TODOS os alarmes (usado apenas na instalação/atualização)
+ */
 async function setupReminders() {
   try {
-    // Limpar todos os alarmes existentes
     await chrome.alarms.clearAll();
 
-    // Buscar notas com lembretes
-    const result = await chrome.storage.local.get([STORAGE_KEY]);
-    const notes = result[STORAGE_KEY] || {};
+    const notes = await getAllNotesFromStorage();
     const now = Date.now();
 
     Object.entries(notes).forEach(([protocolo, nota]) => {
@@ -104,9 +143,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const protocolo = alarm.name.replace(ALARM_PREFIX, '');
 
   try {
-    const result = await chrome.storage.local.get([STORAGE_KEY]);
-    const notes = result[STORAGE_KEY] || {};
-    const nota = notes[protocolo];
+    const nota = await getNoteFromStorage(protocolo);
 
     if (nota) {
       // Mostrar notificação
@@ -118,9 +155,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         priority: 2
       });
 
-      // Limpar lembrete da nota
+      // Limpar lembrete da nota (escrita individual)
       nota.reminder = null;
-      await chrome.storage.local.set({ [STORAGE_KEY]: notes });
+      await chrome.storage.local.set({ [NOTE_PREFIX + protocolo]: nota });
     }
   } catch (error) {
     console.error('[NotasPat] Erro ao processar lembrete:', error);
@@ -130,7 +167,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // Click na notificação
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (notificationId.startsWith('notification_')) {
-    // Abrir popup ou focar na aba do sistema
     chrome.tabs.query({ url: 'https://atendimento.inss.gov.br/*' }, (tabs) => {
       if (tabs.length > 0) {
         chrome.tabs.update(tabs[0].id, { active: true });
@@ -145,8 +181,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 
 async function updateBadge() {
   try {
-    const result = await chrome.storage.local.get([STORAGE_KEY]);
-    const notes = result[STORAGE_KEY] || {};
+    const notes = await getAllNotesFromStorage();
     const count = Object.keys(notes).length;
 
     if (count > 0) {
@@ -160,62 +195,55 @@ async function updateBadge() {
   }
 }
 
-// Atualizar badge e alarmes quando storage muda
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes[STORAGE_KEY]) {
-    updateBadge();
+// ============ LISTENER DE MUDANÇAS NO STORAGE ============
 
-    // Atualizar apenas os alarmes das notas que mudaram (em vez de recriar todos)
-    handleRemindersChanged(changes[STORAGE_KEY]);
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== 'local') return;
+
+  let notesChanged = false;
+
+  for (const key of Object.keys(changes)) {
+    if (key.startsWith(NOTE_PREFIX)) {
+      notesChanged = true;
+      const protocolo = key.substring(NOTE_PREFIX.length);
+      const change = changes[key];
+      handleSingleReminderChanged(protocolo, change.oldValue, change.newValue);
+    }
+  }
+
+  if (notesChanged) {
+    updateBadge();
   }
 });
 
 /**
- * Compara oldValue vs newValue do storage para atualizar apenas
- * os alarmes das notas que foram adicionadas, alteradas ou removidas.
+ * Atualiza o alarme de uma única nota que mudou
  */
-async function handleRemindersChanged(change) {
+async function handleSingleReminderChanged(protocolo, oldNota, newNota) {
   try {
-    const oldNotes = change.oldValue || {};
-    const newNotes = change.newValue || {};
+    const alarmName = `${ALARM_PREFIX}${protocolo}`;
     const now = Date.now();
 
-    const allProtocolos = new Set([
-      ...Object.keys(oldNotes),
-      ...Object.keys(newNotes)
-    ]);
+    if (!newNota && oldNota) {
+      // Nota removida: limpar alarme
+      await chrome.alarms.clear(alarmName);
+    } else if (newNota) {
+      const oldReminder = oldNota ? oldNota.reminder : null;
+      const newReminder = newNota.reminder;
 
-    for (const protocolo of allProtocolos) {
-      const oldNota = oldNotes[protocolo];
-      const newNota = newNotes[protocolo];
-      const alarmName = `${ALARM_PREFIX}${protocolo}`;
-
-      if (!newNota && oldNota) {
-        // Nota removida: limpar alarme
-        await chrome.alarms.clear(alarmName);
-        console.log(`[NotasPat] Alarme removido para ${protocolo}`);
-      } else if (newNota) {
-        const oldReminder = oldNota ? oldNota.reminder : null;
-        const newReminder = newNota.reminder;
-
-        // Só atualizar se o lembrete mudou
-        if (oldReminder !== newReminder) {
-          if (newReminder) {
-            const reminderTime = new Date(newReminder).getTime();
-            if (reminderTime > now) {
-              await chrome.alarms.create(alarmName, { when: reminderTime });
-              console.log(`[NotasPat] Alarme atualizado para ${protocolo}`);
-            }
-          } else {
-            // Lembrete removido
-            await chrome.alarms.clear(alarmName);
-            console.log(`[NotasPat] Alarme removido para ${protocolo}`);
+      if (oldReminder !== newReminder) {
+        if (newReminder) {
+          const reminderTime = new Date(newReminder).getTime();
+          if (reminderTime > now) {
+            await chrome.alarms.create(alarmName, { when: reminderTime });
           }
+        } else {
+          await chrome.alarms.clear(alarmName);
         }
       }
     }
   } catch (error) {
-    console.error('[NotasPat] Erro ao atualizar alarmes:', error);
+    console.error('[NotasPat] Erro ao atualizar alarme:', error);
   }
 }
 
@@ -224,10 +252,9 @@ async function handleRemindersChanged(change) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'getBadgeCount':
-      chrome.storage.local.get([STORAGE_KEY], (result) => {
-        const notes = result[STORAGE_KEY] || {};
+      getAllNotesFromStorage().then(notes => {
         sendResponse({ count: Object.keys(notes).length });
-      });
+      }).catch(() => sendResponse({ count: 0 }));
       return true;
 
     case 'updateBadge':
@@ -253,33 +280,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function setReminderForNote(protocolo, reminderDate) {
-  const result = await chrome.storage.local.get([STORAGE_KEY]);
-  const notes = result[STORAGE_KEY] || {};
+  const key = NOTE_PREFIX + protocolo;
+  const result = await chrome.storage.local.get([key]);
+  const nota = result[key];
 
-  if (notes[protocolo]) {
-    notes[protocolo].reminder = reminderDate;
-    notes[protocolo].updatedAt = new Date().toISOString();
+  if (nota) {
+    nota.reminder = reminderDate;
+    nota.updatedAt = new Date().toISOString();
 
-    await chrome.storage.local.set({ [STORAGE_KEY]: notes });
+    await chrome.storage.local.set({ [key]: nota });
 
-    // Criar alarme
+    // Criar/remover alarme
+    const alarmName = `${ALARM_PREFIX}${protocolo}`;
     if (reminderDate) {
       const reminderTime = new Date(reminderDate).getTime();
       if (reminderTime > Date.now()) {
-        await chrome.alarms.create(`${ALARM_PREFIX}${protocolo}`, {
-          when: reminderTime
-        });
+        await chrome.alarms.create(alarmName, { when: reminderTime });
       }
     } else {
-      // Remover alarme se lembrete foi removido
-      await chrome.alarms.clear(`${ALARM_PREFIX}${protocolo}`);
+      await chrome.alarms.clear(alarmName);
     }
   }
 }
 
 async function getStats() {
-  const result = await chrome.storage.local.get([STORAGE_KEY]);
-  const notes = result[STORAGE_KEY] || {};
+  const notes = await getAllNotesFromStorage();
   const noteList = Object.values(notes);
 
   const now = new Date();
@@ -304,7 +329,9 @@ async function getStats() {
 
 // ============ INICIALIZAÇÃO ============
 
-// Atualizar badge ao iniciar
-updateBadge();
+// Migrar se necessário (safety check a cada startup do service worker)
+migrateToGranularStorage().then(() => {
+  updateBadge();
+});
 
-console.log('[NotasPat] Background Service Worker v1.2.0 carregado');
+console.log('[NotasPat] Background Service Worker v1.3.0 carregado');

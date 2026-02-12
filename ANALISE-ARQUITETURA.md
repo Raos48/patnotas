@@ -90,21 +90,22 @@ O problema mais grave e o padrao de escrita total no storage - cada edicao de um
 
 ## Checklist de Implementacao
 
-### 1. Storage granular (CRITICO)
+### 1. Storage granular (IMPLEMENTADO)
 
-Armazenar cada nota individualmente com prefixo `note_<protocolo>` em vez de um unico objeto `notes`.
+Cada nota armazenada individualmente com prefixo `note_<protocolo>` em vez de um unico objeto `notes`.
 
-- [ ] Criar nova funcao `saveNoteSingle(protocolo, nota)` que grava `{ ["note_" + protocolo]: nota }`
-- [ ] Criar nova funcao `getNoteSingle(protocolo)` que le apenas `chrome.storage.local.get(["note_" + protocolo])`
-- [ ] Criar nova funcao `deleteNoteSingle(protocolo)` que usa `chrome.storage.local.remove("note_" + protocolo)`
-- [ ] Criar funcao `getAllNotesGranular()` que usa `chrome.storage.local.get(null)` e filtra por prefixo `note_`
-- [ ] Adaptar `saveNote()` em `storage.js` para usar o novo padrao granular
-- [ ] Adaptar `deleteNote()` em `storage.js` para usar `chrome.storage.local.remove()`
-- [ ] Adaptar `getNote()` para leitura individual sem carregar tudo
-- [ ] Adaptar `updateNoteColor()` e `updateNoteTags()` para escrita individual
-- [ ] Criar funcao de migracao no `background.js` para converter o formato antigo (`notes: {}`) para o novo (chaves individuais)
-- [ ] Atualizar `exportNotes()` para coletar notas do novo formato
-- [ ] Atualizar `importNotes()` para gravar no novo formato
+- [x] `getAllNotes()` usa `chrome.storage.local.get(null)` e filtra por prefixo `note_`
+- [x] `getNote()` le apenas `chrome.storage.local.get(["note_" + protocolo])`
+- [x] `saveNote()` le/grava apenas a chave individual `note_<protocolo>`
+- [x] `deleteNote()` usa `chrome.storage.local.remove("note_" + protocolo)`
+- [x] `updateNoteColor()` e `updateNoteTags()` fazem leitura/escrita individual
+- [x] `setNoteReminder()` faz leitura/escrita individual
+- [x] `migrateToGranularStorage()` no `background.js` converte formato antigo para novo
+- [x] Migracao executada em `onInstalled` e como safety check a cada startup do service worker
+- [x] `exportNotes()` coleta notas do novo formato (via `getAllNotes()`)
+- [x] `importNotes()` grava cada nota como chave individual
+- [x] `background.js` atualizado: badge, alarmes, stats, mensagens usam formato granular
+- [x] `onChanged` listener filtra por prefixo `note_` e atualiza alarmes individualmente
 - [ ] Testar migracao com dados existentes sem perda
 
 ### 2. Debounce na busca do Popup (IMPLEMENTADO)
