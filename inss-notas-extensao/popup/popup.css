@@ -340,6 +340,27 @@ body {
   text-align: right;
 }
 
+/* ============ BOTÃO CARREGAR MAIS ============ */
+.btn-load-more {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 4px;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-load-more:hover {
+  background: var(--btn-secondary-bg);
+  color: var(--text-primary);
+}
+
 /* ============ AÇÕES ============ */
 .actions-section {
   display: flex;

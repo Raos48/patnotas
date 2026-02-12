@@ -115,15 +115,15 @@ Cada nota armazenada individualmente com prefixo `note_<protocolo>` em vez de um
 - [x] Aplicar debounce de 150ms aos filtros `filterOrder`, `filterColor`, `filterTag`
 - [ ] Testar que a busca continua responsiva mas sem re-renders excessivos
 
-### 3. Paginacao no Popup (ALTO)
+### 3. Paginacao no Popup (IMPLEMENTADO)
 
-- [ ] Definir constante `PAGE_SIZE = 50`
-- [ ] Adicionar variavel de estado `currentPage` em `popup.js`
-- [ ] Modificar `renderNotes()` para renderizar apenas `PAGE_SIZE` notas por vez
-- [ ] Adicionar botao "Carregar mais" no final da lista
-- [ ] Ou implementar scroll infinito com `IntersectionObserver` no container `notesList`
-- [ ] Resetar `currentPage` quando filtros ou busca mudam
-- [ ] Testar com 500+ notas simuladas
+- [x] Definir constante `PAGE_SIZE = 50`
+- [x] Adicionar variavel de estado `displayedCount` em `popup.js`
+- [x] Modificar `renderNotes()` para renderizar apenas `displayedCount` notas por vez
+- [x] Adicionar botao "Carregar mais" no final da lista com contagem de restantes
+- [x] Estilizar botao `.btn-load-more` em `popup.css`
+- [x] Resetar `displayedCount` quando filtros ou busca mudam (via `resetAndRender()`)
+- [ ] Testar com volume grande de notas
 
 ### 4. Alarmes inteligentes (IMPLEMENTADO)
 

@@ -24,6 +24,7 @@ const TEMPLATES_PADRAO = [
 ];
 
 const MAX_CHARS = 500;
+const PAGE_SIZE = 50;
 
 // ============ ELEMENTOS DOM ============
 
@@ -104,10 +105,17 @@ let currentEditProtocolo = null;
 let currentConfirmCallback = null;
 let isDarkTheme = false;
 let draggedItem = null;
+let displayedCount = PAGE_SIZE;
+
+// Reset paginação e renderizar (usado por busca/filtros)
+function resetAndRender() {
+  displayedCount = PAGE_SIZE;
+  renderNotes();
+}
 
 // Funções com debounce para busca e filtros
-const debouncedRenderFromSearch = debounce(renderNotes, 300);
-const debouncedRenderFromFilter = debounce(renderNotes, 150);
+const debouncedRenderFromSearch = debounce(resetAndRender, 300);
+const debouncedRenderFromFilter = debounce(resetAndRender, 150);
 
 // ============ INICIALIZAÇÃO ============
 
@@ -417,7 +425,7 @@ function sortNotes(entries) {
 function renderNotes() {
   const filtered = getFilteredNotes();
   const entries = Object.entries(filtered);
-  
+
   updateCounter();
 
   if (entries.length === 0) {
@@ -432,8 +440,16 @@ function renderNotes() {
   }
 
   const sorted = sortNotes(entries);
+  const paginated = sorted.slice(0, displayedCount);
+  const remaining = sorted.length - displayedCount;
 
-  notesList.innerHTML = sorted.map(([protocolo, nota]) => createNoteItem(protocolo, nota)).join('');
+  let html = paginated.map(([protocolo, nota]) => createNoteItem(protocolo, nota)).join('');
+
+  if (remaining > 0) {
+    html += `<button class="btn-load-more" id="btnLoadMore">Carregar mais (${remaining} restante${remaining !== 1 ? 's' : ''})</button>`;
+  }
+
+  notesList.innerHTML = html;
 
   // Event listeners para ações
   notesList.querySelectorAll('.note-btn-edit').forEach(btn => {
@@ -455,8 +471,19 @@ function renderNotes() {
     btn.addEventListener('click', () => copyProtocolo(btn.dataset.protocolo));
   });
 
+  // Botão carregar mais
+  const btnLoadMore = document.getElementById('btnLoadMore');
+  if (btnLoadMore) {
+    btnLoadMore.addEventListener('click', loadMoreNotes);
+  }
+
   // Drag and drop
   setupDragAndDrop();
+}
+
+function loadMoreNotes() {
+  displayedCount += PAGE_SIZE;
+  renderNotes();
 }
 
 function createNoteItem(protocolo, nota) {
