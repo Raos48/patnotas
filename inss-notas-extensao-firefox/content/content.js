@@ -1,7 +1,8 @@
 /**
  * Content Script - NotasPat
  * Injeta notas adesivas nas tabelas de tarefas
- * Versão 1.2.0 - Com Dark Mode, Tags, Preview, Widget e mais
+ * Versão 1.3.1 (Firefox) - Com Dark Mode, Tags, Preview, Widget e mais
+ * Usa browser.* APIs nativas do Firefox.
  */
 
 // ============ CONSTANTES E CONFIGURAÇÃO ============
@@ -953,7 +954,7 @@ function setupKeyboardShortcuts() {
 
 async function syncTheme() {
   try {
-    const result = await chrome.storage.local.get(['theme']);
+    const result = await browser.storage.local.get(['theme']);
     isDarkTheme = result.theme === 'dark';
     document.body.classList.toggle('inss-dark-theme', isDarkTheme);
   } catch (error) {
@@ -962,7 +963,7 @@ async function syncTheme() {
 }
 
 // Listen for theme changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
+browser.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.theme) {
     isDarkTheme = changes.theme.newValue === 'dark';
     document.body.classList.toggle('inss-dark-theme', isDarkTheme);
@@ -1010,7 +1011,7 @@ function tryProcessTables(maxAttempts = 20, delay = 500) {
 }
 
 async function init() {
-  console.log('[NotasPat] Inicializando v1.3.1...');
+  console.log('[NotasPat] Inicializando v1.3.1 (Firefox)...');
 
   try {
     // Sync theme

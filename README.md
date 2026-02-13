@@ -1,6 +1,6 @@
 # NotasPat - Notas Adesivas para Tarefas
 
-**Versão:** 1.3.0
+**Versão:** 1.3.1
 **Autor:** Ricardo Alves
 
 ## Descrição
@@ -164,6 +164,14 @@ A extensão usa MutationObserver otimizado para detectar mudanças. Se as notas 
 2. Verifique se a extensão tem permissão de notificações em `chrome://extensions/`
 
 ## Changelog
+
+### Versão 1.3.1 - Estabilidade e Segurança
+- **Fix: Tela branca no site** — removida manipulação DOM que movia filhos existentes do TD para dentro de um wrapper, quebrando event listeners e bindings do site
+- **Timeout no storage** — operações de storage agora têm timeout de 5s; se não responder, extensão inicia com cache vazio em vez de travar
+- **Mutex no processRow** — prevenção de race condition que podia gerar elementos duplicados
+- **CSS isolado** — variáveis CSS movidas de `:root` para seletores scoped da extensão, sem poluir estilos da página
+- **Inicialização segura** — try/catch top-level garante que erros da extensão nunca propagam para o site
+- **MutationObserver reforçado** — debounce aumentado para 300ms com flag anti re-entrada
 
 ### Versão 1.3.0 - Otimização de Performance
 - **Storage granular**: cada nota é armazenada individualmente (`note_<protocolo>`) em vez de um objeto monolítico, eliminando o padrão read-all/write-all
