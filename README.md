@@ -14,7 +14,6 @@ Extensão Google Chrome que adiciona notas adesivas (sticky notes) às tarefas d
 - 6 cores de notas disponíveis
 - Templates de texto pré-definidos
 - Lembretes com notificações do navegador
-- Widget flutuante para acesso rápido
 - Busca e filtro de notas com debounce
 - Paginação automática para grandes volumes de notas
 - Exportação/importação de notas (JSON)
@@ -172,6 +171,7 @@ A extensão usa MutationObserver otimizado para detectar mudanças. Se as notas 
 - **CSS isolado** — variáveis CSS movidas de `:root` para seletores scoped da extensão, sem poluir estilos da página
 - **Inicialização segura** — try/catch top-level garante que erros da extensão nunca propagam para o site
 - **MutationObserver reforçado** — debounce aumentado para 300ms com flag anti re-entrada
+- **Widget removido** — feature de widget flutuante removida para eliminar erro de contexto invalidado (`chrome.storage undefined`)
 
 ### Versão 1.3.0 - Otimização de Performance
 - **Storage granular**: cada nota é armazenada individualmente (`note_<protocolo>`) em vez de um objeto monolítico, eliminando o padrão read-all/write-all

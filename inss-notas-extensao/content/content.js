@@ -1,7 +1,7 @@
 /**
  * Content Script - NotasPat
  * Injeta notas adesivas nas tabelas de tarefas
- * Versão 1.2.0 - Com Dark Mode, Tags, Preview, Widget e mais
+ * Versão 1.3.1 - Com Dark Mode, Tags, Preview e mais
  */
 
 // ============ CONSTANTES E CONFIGURAÇÃO ============
@@ -36,7 +36,6 @@ const MAX_CHARS = 500;
 let notasCache = {};
 let isDarkTheme = false;
 let isCompactMode = false;
-let isWidgetVisible = false;
 
 // Debounce timer para MutationObserver
 let debounceTimer = null;
@@ -259,91 +258,6 @@ function hidePreview() {
     clearTimeout(previewTimer);
     previewTimer = null;
   }
-}
-
-// ============ FLOATING WIDGET ============
-
-function createWidget() {
-  if (document.querySelector('.inss-widget')) return;
-
-  const widget = document.createElement('div');
-  widget.className = 'inss-widget';
-
-  widget.innerHTML = `
-    <button class="inss-widget-toggle" title="Notas Adesivas">📝</button>
-    <div class="inss-widget-panel">
-      <div class="inss-widget-header">
-        <span>📝 Notas Recentes</span>
-        <button class="inss-widget-close">✕</button>
-      </div>
-      <div class="inss-widget-content" id="widgetContent">
-        <div class="inss-widget-empty">Carregando...</div>
-      </div>
-      <div class="inss-widget-footer">
-        <button class="inss-widget-btn" id="widgetRefresh">🔄 Atualizar</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(widget);
-
-  // Event listeners
-  widget.querySelector('.inss-widget-toggle').addEventListener('click', () => {
-    widget.classList.toggle('active');
-    if (widget.classList.contains('active')) {
-      updateWidgetContent();
-    }
-  });
-
-  widget.querySelector('.inss-widget-close').addEventListener('click', () => {
-    widget.classList.remove('active');
-  });
-
-  widget.querySelector('#widgetRefresh').addEventListener('click', updateWidgetContent);
-
-  updateWidgetContent();
-}
-
-async function updateWidgetContent() {
-  const content = document.getElementById('widgetContent');
-  if (!content) return;
-
-  // Buscar todas as notas do storage (widget mostra notas recentes globais)
-  let allNotes;
-  try {
-    allNotes = await getAllNotes();
-  } catch (err) {
-    console.error('[NotasPat] Erro ao carregar notas do widget:', err);
-    allNotes = notasCache;
-  }
-
-  const notes = Object.entries(allNotes).filter(([, nota]) => nota !== null);
-
-  if (notes.length === 0) {
-    content.innerHTML = '<div class="inss-widget-empty">Nenhuma nota salva</div>';
-    return;
-  }
-
-  // Ordenar por atualização mais recente
-  const sorted = notes.sort((a, b) =>
-    new Date(b[1].updatedAt) - new Date(a[1].updatedAt)
-  ).slice(0, 5);
-
-  content.innerHTML = sorted.map(([protocolo, nota]) => `
-    <div class="inss-widget-note" data-protocolo="${protocolo}">
-      <div class="inss-widget-note-protocolo">${protocolo}</div>
-      <div class="inss-widget-note-text">${escapeHtml(nota.text)}</div>
-    </div>
-  `).join('');
-
-  content.querySelectorAll('.inss-widget-note').forEach(note => {
-    note.addEventListener('click', () => {
-      const protocolo = note.dataset.protocolo;
-      navigator.clipboard.writeText(protocolo).then(() => {
-        showToast(`Protocolo ${protocolo} copiado!`, 'success');
-      });
-    });
-  });
 }
 
 // ============ FUNÇÕES DE INJEÇÃO ============
@@ -653,7 +567,6 @@ function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
     }
 
     showToast('Nota salva com sucesso!', 'success');
-    updateWidgetContent();
 
     // Verificar saude do storage
     checkStorageHealth().then(health => {
@@ -737,7 +650,6 @@ function deleteNoteHandler(container, protocolo) {
       }
 
       showToast('Nota excluída!', 'success');
-      updateWidgetContent();
     } else {
       console.log('[NotasPat] Nota não encontrada para excluir');
     }
@@ -857,7 +769,7 @@ function startMutationObserver() {
     for (const mutation of mutations) {
       if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
         // Ignorar mutações causadas pela própria extensão
-        if (mutation.target.closest && mutation.target.closest('.inss-nota-container, .inss-nota-sticky, .inss-widget, .inss-nota-editor, .inss-nota-preview, .inss-nota-toast-container')) {
+        if (mutation.target.closest && mutation.target.closest('.inss-nota-container, .inss-nota-sticky, .inss-nota-editor, .inss-nota-preview, .inss-nota-toast-container')) {
           continue;
         }
 
@@ -867,7 +779,6 @@ function startMutationObserver() {
             if (node.classList && (
               node.classList.contains('inss-nota-container') ||
               node.classList.contains('inss-nota-sticky') ||
-              node.classList.contains('inss-widget') ||
               node.classList.contains('inss-nota-editor') ||
               node.classList.contains('inss-nota-preview') ||
               node.classList.contains('inss-nota-toast-container')
@@ -929,11 +840,9 @@ function startMutationObserver() {
 
 function setupKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
-    // Escape - close editor, preview, widget
+    // Escape - close editor, preview
     if (e.key === 'Escape') {
       hidePreview();
-      const widget = document.querySelector('.inss-widget');
-      if (widget) widget.classList.remove('active');
       document.querySelectorAll('.inss-nota-editor').forEach(ed => {
         ed.remove();
         // Show hidden elements
@@ -990,7 +899,6 @@ function tryProcessTables(maxAttempts = 20, delay = 500) {
       console.log(`[NotasPat] ${foundTables} tabela(s) encontrada(s)`);
       scanAllTables();
       startMutationObserver();
-      createWidget();
       setupKeyboardShortcuts();
       return true;
     }
@@ -1000,7 +908,6 @@ function tryProcessTables(maxAttempts = 20, delay = 500) {
     } else {
       console.log('[NotasPat] Tabelas não encontradas, iniciando observer anyway');
       startMutationObserver();
-      createWidget();
       setupKeyboardShortcuts();
     }
     return false;
