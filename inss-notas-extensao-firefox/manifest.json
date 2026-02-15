@@ -57,8 +57,7 @@
       "id": "notaspat@ricardo-alves",
       "strict_min_version": "109.0",
       "data_collection_permissions": {
-        "report_site_data": false,
-        "report_technical_data": false
+        "required": ["none"]
       }
     }
   }
