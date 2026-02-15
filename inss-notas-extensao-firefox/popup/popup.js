@@ -310,10 +310,13 @@ function showToast(message, type = 'success') {
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  toast.innerHTML = `
-    <span class="toast-icon">${icons[type] || icons.success}</span>
-    <span>${message}</span>
-  `;
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'toast-icon';
+  iconSpan.textContent = icons[type] || icons.success;
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = message;
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
 
   toastContainer.appendChild(toast);
 
@@ -370,10 +373,16 @@ function updateStatistics() {
     colorCounts[n.color] = (colorCounts[n.color] || 0) + 1;
   });
   
-  colorStats.innerHTML = CORES_NOTAS.map(cor => {
+  colorStats.textContent = '';
+  CORES_NOTAS.forEach(cor => {
     const count = colorCounts[cor.hex] || 0;
-    return `<div class="color-stat" style="background: ${cor.hex}" title="${cor.nome}: ${count}">${count}</div>`;
-  }).join('');
+    const stat = document.createElement('div');
+    stat.className = 'color-stat';
+    stat.style.background = cor.hex;
+    stat.title = `${cor.nome}: ${count}`;
+    stat.textContent = count;
+    colorStats.appendChild(stat);
+  });
 }
 
 function getFilteredNotes() {
@@ -429,14 +438,19 @@ function renderNotes() {
 
   updateCounter();
 
+  notesList.textContent = '';
+
   if (entries.length === 0) {
     const hasSearch = searchInput.value.trim() || filterColor.value !== 'all' || filterTag.value !== 'all';
-    notesList.innerHTML = `
-      <div class="empty-state">
-        <p>${hasSearch ? 'Nenhuma nota encontrada.' : 'Nenhuma nota salva ainda.'}</p>
-        <small>${hasSearch ? 'Tente ajustar os filtros.' : 'Clique em "📝 Nota" na página de tarefas para adicionar.'}</small>
-      </div>
-    `;
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-state';
+    const p = document.createElement('p');
+    p.textContent = hasSearch ? 'Nenhuma nota encontrada.' : 'Nenhuma nota salva ainda.';
+    const small = document.createElement('small');
+    small.textContent = hasSearch ? 'Tente ajustar os filtros.' : 'Clique em "📝 Nota" na página de tarefas para adicionar.';
+    emptyDiv.appendChild(p);
+    emptyDiv.appendChild(small);
+    notesList.appendChild(emptyDiv);
     return;
   }
 
@@ -444,38 +458,17 @@ function renderNotes() {
   const paginated = sorted.slice(0, displayedCount);
   const remaining = sorted.length - displayedCount;
 
-  let html = paginated.map(([protocolo, nota]) => createNoteItem(protocolo, nota)).join('');
+  paginated.forEach(([protocolo, nota]) => {
+    notesList.appendChild(createNoteItemElement(protocolo, nota));
+  });
 
   if (remaining > 0) {
-    html += `<button class="btn-load-more" id="btnLoadMore">Carregar mais (${remaining} restante${remaining !== 1 ? 's' : ''})</button>`;
-  }
-
-  notesList.innerHTML = html;
-
-  // Event listeners para ações
-  notesList.querySelectorAll('.note-btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => openEditModal(btn.dataset.protocolo));
-  });
-
-  notesList.querySelectorAll('.note-btn-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
-      showConfirm(
-        `Excluir nota do protocolo ${btn.dataset.protocolo}?`,
-        'Esta ação não pode ser desfeita.',
-        () => deleteNoteByProtocolo(btn.dataset.protocolo),
-        '🗑️'
-      );
-    });
-  });
-
-  notesList.querySelectorAll('.note-btn-copy').forEach(btn => {
-    btn.addEventListener('click', () => copyProtocolo(btn.dataset.protocolo));
-  });
-
-  // Botão carregar mais
-  const btnLoadMore = document.getElementById('btnLoadMore');
-  if (btnLoadMore) {
+    const btnLoadMore = document.createElement('button');
+    btnLoadMore.className = 'btn-load-more';
+    btnLoadMore.id = 'btnLoadMore';
+    btnLoadMore.textContent = `Carregar mais (${remaining} restante${remaining !== 1 ? 's' : ''})`;
     btnLoadMore.addEventListener('click', loadMoreNotes);
+    notesList.appendChild(btnLoadMore);
   }
 
   // Drag and drop
@@ -487,39 +480,97 @@ function loadMoreNotes() {
   renderNotes();
 }
 
-function createNoteItem(protocolo, nota) {
+function createNoteItemElement(protocolo, nota) {
   const date = formatDate(nota.updatedAt);
   const tags = nota.tags || [];
-  const tagsHtml = tags.map(tag =>
-    `<span class="tag tag-${tag}">${getTagLabel(tag)}</span>`
-  ).join('');
 
-  // Escapar dados do usuário
-  const safeProtocolo = escapeAttr(protocolo);
-  const safeText = escapeHtml(nota.text);
-  const safeColor = escapeAttr(nota.color);
-  const safeDobra = escapeAttr(getDobraColor(nota.color));
+  const item = document.createElement('div');
+  item.className = 'note-item';
+  item.draggable = true;
+  item.dataset.protocolo = protocolo;
 
-  return `
-    <div class="note-item" draggable="true" data-protocolo="${safeProtocolo}">
-      <div class="note-header">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="drag-handle" title="Arrastar">⋮⋮</span>
-          <span class="note-protocolo">${safeProtocolo}</span>
-        </div>
-        <div class="note-actions">
-          <button class="note-btn note-btn-copy" data-protocolo="${safeProtocolo}" title="Copiar protocolo">📋</button>
-          <button class="note-btn note-btn-edit" data-protocolo="${safeProtocolo}" title="Editar">✏️</button>
-          <button class="note-btn note-btn-delete" data-protocolo="${safeProtocolo}" title="Excluir">🗑️</button>
-        </div>
-      </div>
-      ${tags.length > 0 ? `<div class="tags-container">${tagsHtml}</div>` : ''}
-      <div class="note-text" style="--nota-bg: ${safeColor}; --nota-dobra: ${safeDobra}">
-        ${safeText}
-      </div>
-      <div class="note-date">Atualizado: ${date}</div>
-    </div>
-  `;
+  // Header
+  const header = document.createElement('div');
+  header.className = 'note-header';
+
+  const leftDiv = document.createElement('div');
+  leftDiv.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+  const dragHandle = document.createElement('span');
+  dragHandle.className = 'drag-handle';
+  dragHandle.title = 'Arrastar';
+  dragHandle.textContent = '⋮⋮';
+  const protocoloSpan = document.createElement('span');
+  protocoloSpan.className = 'note-protocolo';
+  protocoloSpan.textContent = protocolo;
+  leftDiv.appendChild(dragHandle);
+  leftDiv.appendChild(protocoloSpan);
+
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'note-actions';
+
+  const btnCopy = document.createElement('button');
+  btnCopy.className = 'note-btn note-btn-copy';
+  btnCopy.dataset.protocolo = protocolo;
+  btnCopy.title = 'Copiar protocolo';
+  btnCopy.textContent = '📋';
+  btnCopy.addEventListener('click', () => copyProtocolo(protocolo));
+
+  const btnEdit = document.createElement('button');
+  btnEdit.className = 'note-btn note-btn-edit';
+  btnEdit.dataset.protocolo = protocolo;
+  btnEdit.title = 'Editar';
+  btnEdit.textContent = '✏️';
+  btnEdit.addEventListener('click', () => openEditModal(protocolo));
+
+  const btnDelete = document.createElement('button');
+  btnDelete.className = 'note-btn note-btn-delete';
+  btnDelete.dataset.protocolo = protocolo;
+  btnDelete.title = 'Excluir';
+  btnDelete.textContent = '🗑️';
+  btnDelete.addEventListener('click', () => {
+    showConfirm(
+      `Excluir nota do protocolo ${protocolo}?`,
+      'Esta ação não pode ser desfeita.',
+      () => deleteNoteByProtocolo(protocolo),
+      '🗑️'
+    );
+  });
+
+  actionsDiv.appendChild(btnCopy);
+  actionsDiv.appendChild(btnEdit);
+  actionsDiv.appendChild(btnDelete);
+  header.appendChild(leftDiv);
+  header.appendChild(actionsDiv);
+  item.appendChild(header);
+
+  // Tags
+  if (tags.length > 0) {
+    const tagsContainer = document.createElement('div');
+    tagsContainer.className = 'tags-container';
+    tags.forEach(tag => {
+      const tagSpan = document.createElement('span');
+      tagSpan.className = `tag tag-${tag}`;
+      tagSpan.textContent = getTagLabel(tag);
+      tagsContainer.appendChild(tagSpan);
+    });
+    item.appendChild(tagsContainer);
+  }
+
+  // Note text
+  const noteText = document.createElement('div');
+  noteText.className = 'note-text';
+  noteText.style.setProperty('--nota-bg', nota.color);
+  noteText.style.setProperty('--nota-dobra', getDobraColor(nota.color));
+  noteText.textContent = nota.text;
+  item.appendChild(noteText);
+
+  // Date
+  const noteDate = document.createElement('div');
+  noteDate.className = 'note-date';
+  noteDate.textContent = `Atualizado: ${date}`;
+  item.appendChild(noteDate);
+
+  return item;
 }
 
 function getTagLabel(tag) {
@@ -594,21 +645,20 @@ function handleDrop(e) {
 // ============ MODAL DE EDIÇÃO ============
 
 function createColorPicker() {
-  editColorPicker.innerHTML = CORES_NOTAS.map(cor => `
-    <div class="color-dot ${cor.hex === selectedColor ? 'selected' : ''}"
-         style="background-color: ${cor.hex}"
-         data-color="${cor.hex}"
-         data-dobra="${cor.dobra}"
-         title="${cor.nome}">
-    </div>
-  `).join('');
-
-  editColorPicker.querySelectorAll('.color-dot').forEach(dot => {
+  editColorPicker.textContent = '';
+  CORES_NOTAS.forEach(cor => {
+    const dot = document.createElement('div');
+    dot.className = `color-dot${cor.hex === selectedColor ? ' selected' : ''}`;
+    dot.style.backgroundColor = cor.hex;
+    dot.dataset.color = cor.hex;
+    dot.dataset.dobra = cor.dobra;
+    dot.title = cor.nome;
     dot.addEventListener('click', () => {
       editColorPicker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
       dot.classList.add('selected');
       selectedColor = dot.dataset.color;
     });
+    editColorPicker.appendChild(dot);
   });
 }
 
@@ -656,20 +706,23 @@ function updateCharCounter() {
 }
 
 function renderSelectedTags() {
-  editTags.innerHTML = selectedTags.map(tag => `
-    <span class="tag tag-${tag}" data-tag="${tag}">
-      ${getTagLabel(tag)}
-      <span class="tag-remove" data-tag="${tag}">×</span>
-    </span>
-  `).join('');
-
-  editTags.querySelectorAll('.tag-remove').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  editTags.textContent = '';
+  selectedTags.forEach(tag => {
+    const tagSpan = document.createElement('span');
+    tagSpan.className = `tag tag-${tag}`;
+    tagSpan.dataset.tag = tag;
+    tagSpan.textContent = getTagLabel(tag) + ' ';
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'tag-remove';
+    removeBtn.dataset.tag = tag;
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const tag = btn.dataset.tag;
       selectedTags = selectedTags.filter(t => t !== tag);
       renderSelectedTags();
     });
+    tagSpan.appendChild(removeBtn);
+    editTags.appendChild(tagSpan);
   });
 }
 
@@ -722,19 +775,14 @@ function copyProtocolo(protocolo) {
 // ============ TEMPLATES ============
 
 function renderTemplatesList() {
-  templatesList.innerHTML = templatesData.map(t => {
-    const safeId = escapeAttr(t.id);
-    const safeNome = escapeHtml(t.nome);
-    return `
-      <div class="template-item" data-id="${safeId}">
-        📋 ${safeNome}
-      </div>
-    `;
-  }).join('');
-
-  templatesList.querySelectorAll('.template-item').forEach(item => {
+  templatesList.textContent = '';
+  templatesData.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'template-item';
+    item.dataset.id = t.id;
+    item.textContent = `📋 ${t.nome}`;
     item.addEventListener('click', () => {
-      const template = templatesData.find(t => t.id === item.dataset.id);
+      const template = templatesData.find(tmpl => tmpl.id === t.id);
       if (template) {
         editText.value = template.texto;
         updateCharCounter();
@@ -742,36 +790,49 @@ function renderTemplatesList() {
         showToast(`Template "${template.nome}" aplicado`, 'success');
       }
     });
+    templatesList.appendChild(item);
   });
 }
 
 function renderSavedTemplates() {
   if (!savedTemplates) return;
 
-  savedTemplates.innerHTML = templatesData.map(t => {
-    const safeId = escapeAttr(t.id);
-    const safeNome = escapeHtml(t.nome);
-    const safeTexto = escapeHtml(t.texto);
-    return `
-      <div class="note-item" style="margin-bottom: 8px;">
-        <div class="note-header">
-          <span class="note-protocolo">${safeNome}</span>
-          <button class="note-btn" data-id="${safeId}" title="Excluir">🗑️</button>
-        </div>
-        <div class="note-text" style="--nota-bg: #f5f5f5; font-size: 11px;">${safeTexto}</div>
-      </div>
-    `;
-  }).join('');
+  savedTemplates.textContent = '';
+  templatesData.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'note-item';
+    item.style.marginBottom = '8px';
 
-  savedTemplates.querySelectorAll('.note-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    const header = document.createElement('div');
+    header.className = 'note-header';
+    const nome = document.createElement('span');
+    nome.className = 'note-protocolo';
+    nome.textContent = t.nome;
+    const btnDel = document.createElement('button');
+    btnDel.className = 'note-btn';
+    btnDel.dataset.id = t.id;
+    btnDel.title = 'Excluir';
+    btnDel.textContent = '🗑️';
+    btnDel.addEventListener('click', () => {
       showConfirm(
         'Excluir este template?',
         '',
-        () => deleteTemplate(btn.dataset.id),
+        () => deleteTemplate(t.id),
         '🗑️'
       );
     });
+    header.appendChild(nome);
+    header.appendChild(btnDel);
+
+    const text = document.createElement('div');
+    text.className = 'note-text';
+    text.style.setProperty('--nota-bg', '#f5f5f5');
+    text.style.fontSize = '11px';
+    text.textContent = t.texto;
+
+    item.appendChild(header);
+    item.appendChild(text);
+    savedTemplates.appendChild(item);
   });
 }
 

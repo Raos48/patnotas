@@ -139,10 +139,12 @@ function showToast(message, type = 'success') {
 
   const toast = document.createElement('div');
   toast.className = `inss-toast inss-toast-${type}`;
-  toast.innerHTML = `
-    <span>${icons[type] || icons.success}</span>
-    <span>${escapeHtml(message)}</span>
-  `;
+  const iconSpan = document.createElement('span');
+  iconSpan.textContent = icons[type] || icons.success;
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = message;
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
 
   container.appendChild(toast);
 
@@ -157,25 +159,48 @@ function showConfirm(message, subMessage = '', onConfirm, icon = '⚠️') {
   const overlay = document.createElement('div');
   overlay.className = 'inss-confirm-overlay';
 
-  overlay.innerHTML = `
-    <div class="inss-confirm-modal">
-      <div class="inss-confirm-icon">${icon}</div>
-      <div class="inss-confirm-message">${escapeHtml(message)}</div>
-      <div class="inss-confirm-sub">${escapeHtml(subMessage)}</div>
-      <div class="inss-confirm-buttons">
-        <button class="inss-confirm-btn inss-confirm-btn-cancel">Cancelar</button>
-        <button class="inss-confirm-btn inss-confirm-btn-ok">Confirmar</button>
-      </div>
-    </div>
-  `;
+  const modal = document.createElement('div');
+  modal.className = 'inss-confirm-modal';
 
+  const iconDiv = document.createElement('div');
+  iconDiv.className = 'inss-confirm-icon';
+  iconDiv.textContent = icon;
+
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'inss-confirm-message';
+  msgDiv.textContent = message;
+
+  const subDiv = document.createElement('div');
+  subDiv.className = 'inss-confirm-sub';
+  subDiv.textContent = subMessage;
+
+  const buttonsDiv = document.createElement('div');
+  buttonsDiv.className = 'inss-confirm-buttons';
+
+  const btnCancel = document.createElement('button');
+  btnCancel.className = 'inss-confirm-btn inss-confirm-btn-cancel';
+  btnCancel.textContent = 'Cancelar';
+
+  const btnOk = document.createElement('button');
+  btnOk.className = 'inss-confirm-btn inss-confirm-btn-ok';
+  btnOk.textContent = 'Confirmar';
+
+  buttonsDiv.appendChild(btnCancel);
+  buttonsDiv.appendChild(btnOk);
+
+  modal.appendChild(iconDiv);
+  modal.appendChild(msgDiv);
+  modal.appendChild(subDiv);
+  modal.appendChild(buttonsDiv);
+
+  overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
-  overlay.querySelector('.inss-confirm-btn-cancel').addEventListener('click', () => {
+  btnCancel.addEventListener('click', () => {
     overlay.remove();
   });
 
-  overlay.querySelector('.inss-confirm-btn-ok').addEventListener('click', () => {
+  btnOk.addEventListener('click', () => {
     onConfirm();
     overlay.remove();
   });
@@ -271,7 +296,10 @@ function createAddButton(protocolo) {
   const button = document.createElement('button');
   button.className = 'inss-nota-add-btn';
   button.title = 'Adicionar nota';
-  button.innerHTML = '📝 <span>Nota</span>';
+  button.textContent = '📝 ';
+  const spanNota = document.createElement('span');
+  spanNota.textContent = 'Nota';
+  button.appendChild(spanNota);
 
   button.addEventListener('click', (e) => {
     console.log('[NotasPat] Botão clicado para protocolo:', protocolo);
@@ -558,7 +586,7 @@ function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
     console.log('[NotasPat] Nota salva:', nota);
 
     // Limpar container
-    container.innerHTML = '';
+    container.textContent = '';
 
     // Criar e adicionar novo sticky
     const newContainer = createNoteSticky(protocolo, nota);
