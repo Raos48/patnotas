@@ -86,6 +86,15 @@ const confirmSub = document.getElementById('confirmSub');
 const confirmCancel = document.getElementById('confirmCancel');
 const confirmOk = document.getElementById('confirmOk');
 
+// Modal de Importação
+const importModal = document.getElementById('importModal');
+const importModalMessage = document.getElementById('importModalMessage');
+const importModalSub = document.getElementById('importModalSub');
+const importCancel = document.getElementById('importCancel');
+const importMerge = document.getElementById('importMerge');
+const importReplace = document.getElementById('importReplace');
+let pendingImportFile = null;
+
 // ============ UTILIDADES - DEBOUNCE ============
 
 function debounce(fn, delay) {
@@ -284,6 +293,22 @@ function setupEventListeners() {
     if (e.target === confirmModal) closeConfirmModal();
   });
 
+  // Modal de Importação
+  importCancel.addEventListener('click', closeImportModal);
+  importMerge.addEventListener('click', async () => {
+    const file = pendingImportFile;
+    closeImportModal();
+    if (file) await doImport(file);
+  });
+  importReplace.addEventListener('click', async () => {
+    const file = pendingImportFile;
+    closeImportModal();
+    if (file) await doReplaceImport(file);
+  });
+  importModal.addEventListener('click', (e) => {
+    if (e.target === importModal) closeImportModal();
+  });
+
   // Alerta de storage
   storageWarningDismiss.addEventListener('click', () => {
     storageWarning.style.display = 'none';
@@ -294,6 +319,7 @@ function setupEventListeners() {
     if (e.key === 'Escape') {
       closeEditModal();
       closeConfirmModal();
+      closeImportModal();
       templatesModal?.classList.remove('active');
     }
   });
@@ -339,6 +365,11 @@ function showConfirm(message, subMessage = '', onConfirm, icon = '⚠️') {
 function closeConfirmModal() {
   confirmModal.classList.remove('active');
   currentConfirmCallback = null;
+}
+
+function closeImportModal() {
+  importModal.classList.remove('active');
+  pendingImportFile = null;
 }
 
 // ============ RENDERIZAÇÃO ============
@@ -908,16 +939,12 @@ async function importNotesFromFile(event) {
   fileInput.value = '';
 
   const importCount = Object.keys(notasData).length;
-  
+
   if (importCount > 0) {
-    showConfirm(
-      `Você tem ${importCount} nota(s) salva(s).`,
-      'Deseja importar e mesclar com as notas existentes?',
-      async () => {
-        await doImport(file);
-      },
-      '📥'
-    );
+    pendingImportFile = file;
+    importModalMessage.textContent = `Você tem ${importCount} nota(s) salva(s).`;
+    importModalSub.textContent = 'Mesclar mantém suas notas atuais. Substituir apaga todas e importa apenas o arquivo.';
+    importModal.classList.add('active');
   } else {
     await doImport(file);
   }
@@ -931,7 +958,21 @@ async function doImport(file) {
     showToast('Notas importadas com sucesso!', 'success');
     await verifyStorageHealth();
   } catch (error) {
-    console.error('Erro ao importar notas:', error);
+    console.error('[NotasPat] Erro ao importar notas:', error);
+    showToast('Erro ao importar. Verifique o arquivo.', 'error');
+  }
+}
+
+async function doReplaceImport(file) {
+  try {
+    const text = await file.text();
+    await deleteAllNotes();
+    await importNotes(text);
+    await loadNotes();
+    showToast('Notas substituídas com sucesso!', 'success');
+    await verifyStorageHealth();
+  } catch (error) {
+    console.error('[NotasPat] Erro ao substituir notas:', error);
     showToast('Erro ao importar. Verifique o arquivo.', 'error');
   }
 }

@@ -139,6 +139,23 @@ function deleteNote(protocolo) {
 }
 
 /**
+ * Remove TODAS as notas do storage (mantém outros dados como templates, theme, etc.)
+ * @returns {Promise<void>}
+ */
+function deleteAllNotes() {
+  return new Promise((resolve, reject) => {
+    getAllNotes().then(notes => {
+      const keys = Object.keys(notes).map(p => NOTE_PREFIX + p);
+      if (keys.length === 0) { resolve(); return; }
+      chrome.storage.local.remove(keys, () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve();
+      });
+    }).catch(reject);
+  });
+}
+
+/**
  * Altera apenas a cor de uma nota (leitura/escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string} color - Nova cor (hex)
@@ -259,7 +276,7 @@ function exportNotes() {
   return new Promise((resolve, reject) => {
     getAllNotes().then(notes => {
       const exportData = {
-        version: '1.3.0',
+        version: '1.3.2',
         exportDate: new Date().toISOString(),
         notes: notes
       };

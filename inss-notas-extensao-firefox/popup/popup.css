@@ -681,6 +681,11 @@ body {
   background: #c82333;
 }
 
+/* ============ IMPORT MODAL ============ */
+.import-modal-footer {
+  gap: 8px;
+}
+
 /* ============ CHARACTER COUNTER ============ */
 .char-counter {
   display: flex;

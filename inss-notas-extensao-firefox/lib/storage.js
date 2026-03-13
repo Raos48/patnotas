@@ -96,6 +96,17 @@ async function deleteNote(protocolo) {
 }
 
 /**
+ * Remove TODAS as notas do storage (mantém outros dados como templates, theme, etc.)
+ * @returns {Promise<void>}
+ */
+async function deleteAllNotes() {
+  const notes = await getAllNotes();
+  const keys = Object.keys(notes).map(p => NOTE_PREFIX + p);
+  if (keys.length === 0) return;
+  await browser.storage.local.remove(keys);
+}
+
+/**
  * Altera apenas a cor de uma nota (leitura/escrita individual)
  * @param {string} protocolo - Número do protocolo
  * @param {string} color - Nova cor (hex)
@@ -172,7 +183,7 @@ async function getNotesWithReminders() {
 async function exportNotes() {
   const notes = await getAllNotes();
   const exportData = {
-    version: '1.3.0',
+    version: '1.3.2',
     exportDate: new Date().toISOString(),
     notes: notes
   };
