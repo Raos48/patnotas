@@ -1,7 +1,7 @@
 /**
  * Content Script - NotasPat
  * Injeta notas adesivas nas tabelas de tarefas
- * Versão 1.3.1 (Firefox) - Com Dark Mode, Tags, Preview e mais
+ * Versão 1.3.3 (Firefox) - Com Dark Mode, Tags, Preview e mais
  * Usa browser.* APIs nativas do Firefox.
  */
 
@@ -364,11 +364,6 @@ function createNoteSticky(protocolo, nota) {
   });
   btnEdit.className = 'inss-nota-btn inss-nota-edit';
 
-  const btnColor = createActionButton('🎨', 'Mudar cor', () => {
-    openColorPicker(container, protocolo);
-  });
-  btnColor.className = 'inss-nota-btn inss-nota-color';
-
   const btnDelete = createActionButton('🗑️', 'Excluir nota', () => {
     showConfirm(
       `Excluir nota do protocolo ${protocolo}?`,
@@ -380,7 +375,6 @@ function createNoteSticky(protocolo, nota) {
   btnDelete.className = 'inss-nota-btn inss-nota-delete';
 
   actions.appendChild(btnEdit);
-  actions.appendChild(btnColor);
   actions.appendChild(btnDelete);
 
   header.appendChild(titulo);
@@ -569,14 +563,18 @@ function openEditor(container, protocolo, existingText = '', existingColor = DEF
     }
   });
 
-  // Keyboard shortcuts
+  // Impedir que eventos de teclado no textarea propaguem para a página
+  // (evita conflito com atalhos do portal INSS, ex: espaço seleciona tarefa)
   textarea.addEventListener('keydown', (e) => {
+    e.stopPropagation();
     if (e.ctrlKey && e.key === 'Enter') {
       btnSave.click();
     } else if (e.key === 'Escape') {
       btnCancel.click();
     }
   });
+  textarea.addEventListener('keyup', (e) => e.stopPropagation());
+  textarea.addEventListener('keypress', (e) => e.stopPropagation());
 }
 
 function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
@@ -946,7 +944,7 @@ function tryProcessTables(maxAttempts = 20, delay = 500) {
 }
 
 async function init() {
-  console.log('[NotasPat] Inicializando v1.3.1 (Firefox)...');
+  console.log('[NotasPat] Inicializando v1.3.3 (Firefox)...');
 
   try {
     // Sync theme

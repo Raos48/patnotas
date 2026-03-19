@@ -21,3 +21,9 @@ build/
 # Temporary files
 *.tmp
 *.temp
+
+# Release packages
+*.zip
+
+# Documentation files
+*.md
