@@ -111,12 +111,41 @@
       <button id="btnImport" class="btn-action" title="Importar notas">
         📥 Importar
       </button>
+      <button id="btnStdTexts" class="btn-action" title="Textos Padrao">
+        📋 Textos Padrao
+      </button>
       <input type="file" id="fileInput" accept=".json" style="display: none;">
+    </div>
+
+    <!-- Painel de Textos Padrao -->
+    <div id="stdTextsPanel" class="stdtexts-panel" style="display: none;">
+      <div class="stdtexts-header">
+        <h3>Textos Padrao</h3>
+        <div class="stdtexts-header-actions">
+          <input type="text" id="stdTextsSearch" class="stdtexts-search-input" placeholder="Buscar...">
+          <button id="btnOpenStdTextsPage" class="btn-action btn-small" title="Abrir pagina dedicada">
+            &#8599;
+          </button>
+        </div>
+      </div>
+      <div id="stdTextsList" class="stdtexts-list"></div>
+      <div id="stdTextsForm" class="stdtexts-form" style="display: none;">
+        <input type="text" id="stdTextTitle" class="stdtexts-input" placeholder="Titulo (obrigatorio)" maxlength="100">
+        <textarea id="stdTextContent" class="stdtexts-textarea" placeholder="Conteudo do texto padrao (min. 30 caracteres)" rows="4"></textarea>
+        <div class="stdtexts-form-footer">
+          <span id="stdTextCharCount" class="stdtexts-char-count">0 caracteres</span>
+          <div class="stdtexts-form-buttons">
+            <button id="btnCancelStdText" class="btn-secondary btn-small">Cancelar</button>
+            <button id="btnSaveStdText" class="btn-primary btn-small">Salvar</button>
+          </div>
+        </div>
+      </div>
+      <button id="btnAddStdText" class="btn-primary stdtexts-add-btn">+ Novo Texto</button>
     </div>
 
     <!-- Footer -->
     <footer class="popup-footer">
-      <span class="version">v1.3.3</span>
+      <span class="version">v1.3.5</span>
     </footer>
   </div>
 

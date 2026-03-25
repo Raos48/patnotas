@@ -15,7 +15,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     // Inicializar storage
     await chrome.storage.local.set({
       templates: getDefaultTemplates(),
-      theme: 'light'
+      theme: 'light',
+      standard_texts: []
     });
     console.log('[NotasPat] Storage inicializado');
   } else if (details.reason === 'update') {
@@ -186,7 +187,7 @@ async function updateBadge() {
 
     if (count > 0) {
       chrome.action.setBadgeText({ text: count.toString() });
-      chrome.action.setBadgeBackgroundColor({ color: '#1351b4' });
+      chrome.action.setBadgeBackgroundColor({ color: '#0B7D3B' });
     } else {
       chrome.action.setBadgeText({ text: '' });
     }
@@ -272,6 +273,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       getStats()
         .then(stats => sendResponse(stats))
         .catch(err => sendResponse({ error: err.message }));
+      return true;
+
+    case 'openStdTextsPage':
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('stdtexts/stdtexts.html')
+      });
+      sendResponse({ success: true });
       return true;
 
     default:

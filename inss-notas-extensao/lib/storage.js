@@ -414,3 +414,194 @@ function getNotesStats() {
     }).catch(reject);
   });
 }
+
+// ============ TEXTOS PADRAO ============
+
+const STANDARD_TEXTS_KEY = 'standard_texts';
+
+/**
+ * Gera um ID unico para texto padrao
+ */
+function generateStdTextId() {
+  return 'st_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+}
+
+/**
+ * Retorna todos os textos padrao
+ * @returns {Promise<Array>} Array de textos (retorna [] se chave nao existir)
+ */
+function getStandardTexts() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      resolve(result[STANDARD_TEXTS_KEY] || []);
+    });
+  });
+}
+
+/**
+ * Salva um novo texto padrao
+ * @param {string} title - Titulo (obrigatorio, max 100 chars)
+ * @param {string} text - Conteudo (min 30 chars)
+ * @returns {Promise<Object>} Texto criado
+ */
+function saveStandardText(title, text) {
+  const trimmedTitle = (title || '').trim();
+  const trimmedText = (text || '').trim();
+  if (!trimmedTitle) return Promise.reject(new Error('Titulo e obrigatorio'));
+  if (trimmedTitle.length > 100) return Promise.reject(new Error('Titulo deve ter no maximo 100 caracteres'));
+  if (trimmedText.length < 30) return Promise.reject(new Error('Texto deve ter no minimo 30 caracteres'));
+
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
+      if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
+      const texts = result[STANDARD_TEXTS_KEY] || [];
+      const now = new Date().toISOString();
+      const entry = {
+        id: generateStdTextId(),
+        title: trimmedTitle,
+        text: trimmedText,
+        createdAt: now,
+        updatedAt: now
+      };
+      texts.push(entry);
+      chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: texts }, () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(entry);
+      });
+    });
+  });
+}
+
+/**
+ * Atualiza um texto padrao existente
+ * @param {string} id - ID do texto
+ * @param {string} title - Novo titulo
+ * @param {string} text - Novo conteudo
+ * @returns {Promise<Object>} Texto atualizado
+ */
+function updateStandardText(id, title, text) {
+  const trimmedTitle = (title || '').trim();
+  const trimmedText = (text || '').trim();
+  if (!trimmedTitle) return Promise.reject(new Error('Titulo e obrigatorio'));
+  if (trimmedTitle.length > 100) return Promise.reject(new Error('Titulo deve ter no maximo 100 caracteres'));
+  if (trimmedText.length < 30) return Promise.reject(new Error('Texto deve ter no minimo 30 caracteres'));
+
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
+      if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
+      const texts = result[STANDARD_TEXTS_KEY] || [];
+      const index = texts.findIndex(t => t.id === id);
+      if (index === -1) { reject(new Error('Texto nao encontrado')); return; }
+      texts[index].title = trimmedTitle;
+      texts[index].text = trimmedText;
+      texts[index].updatedAt = new Date().toISOString();
+      chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: texts }, () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(texts[index]);
+      });
+    });
+  });
+}
+
+/**
+ * Remove um texto padrao
+ * @param {string} id - ID do texto
+ * @returns {Promise<boolean>}
+ */
+function deleteStandardText(id) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
+      if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
+      const texts = result[STANDARD_TEXTS_KEY] || [];
+      const filtered = texts.filter(t => t.id !== id);
+      chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: filtered }, () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(true);
+      });
+    });
+  });
+}
+
+/**
+ * Exporta textos padrao como JSON string
+ * @returns {Promise<string>}
+ */
+function exportStandardTexts() {
+  return new Promise((resolve, reject) => {
+    getStandardTexts().then(texts => {
+      const exportData = {
+        version: '1.0',
+        type: 'standard_texts',
+        exportDate: new Date().toISOString(),
+        texts: texts
+      };
+      resolve(JSON.stringify(exportData, null, 2));
+    }).catch(reject);
+  });
+}
+
+/**
+ * Importa textos padrao de JSON string
+ * @param {string} jsonString - JSON exportado
+ * @param {boolean} replace - true = substituir, false = mesclar
+ * @returns {Promise<Array>} Textos resultantes
+ */
+function importStandardTexts(jsonString, replace) {
+  return new Promise((resolve, reject) => {
+    try {
+      const importData = JSON.parse(jsonString);
+      if (importData.type !== 'standard_texts') {
+        reject(new Error('Arquivo nao e um export de textos padrao'));
+        return;
+      }
+      if (!Array.isArray(importData.texts)) {
+        reject(new Error('Formato de arquivo invalido'));
+        return;
+      }
+
+      if (replace) {
+        chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: importData.texts }, () => {
+          if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+          else resolve(importData.texts);
+        });
+      } else {
+        chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
+          if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
+          const existing = result[STANDARD_TEXTS_KEY] || [];
+          const now = Date.now();
+          importData.texts.forEach((entry, i) => {
+            entry.id = 'st_' + (now + i) + '_' + Math.random().toString(36).substring(2, 7);
+          });
+          const merged = existing.concat(importData.texts);
+          chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: merged }, () => {
+            if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+            else resolve(merged);
+          });
+        });
+      }
+    } catch (e) {
+      reject(new Error('Erro ao ler arquivo JSON: ' + e.message));
+    }
+  });
+}
+
+/**
+ * Verifica saude dos textos padrao
+ * @returns {Promise<Object>} { ok, count, warning }
+ */
+function checkStandardTextsHealth() {
+  return new Promise((resolve, reject) => {
+    getStandardTexts().then(texts => {
+      const count = texts.length;
+      let warning = null;
+      if (count >= 200) {
+        warning = `Voce possui ${count} textos padrao salvos. Considere remover textos que nao utiliza mais.`;
+      }
+      resolve({ ok: count < 200, count, warning });
+    }).catch(reject);
+  });
+}

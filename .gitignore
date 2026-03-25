@@ -25,5 +25,8 @@ build/
 # Release packages
 *.zip
 
-# Documentation files
+# Backups
+bkp/
+
+# Documentation files (currently ignored - may want to keep CLAUDE.md, README.md, etc.)
 *.md

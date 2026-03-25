@@ -1,0 +1,116 @@
+Ótimo foco, Ricardo. Vamos criar uma identidade visual séria e corporativa inspirada nas cores do INSS, mas um pouco mais refinada para interface moderna.
+
+Vou te entregar:
+
+🎨 Paleta principal inspirada no INSS
+🎯 Sugestão de uso (fundo, botões, destaques, texto)
+💻 Exemplo já pensando em UI (extensão / sistema web)
+1. Paleta base inspirada no INSS 🎨
+O INSS usa como referência o verde e o amarelo da bandeira, com azul de apoio. Vou adaptar isso para algo mais corporativo e menos “festivo”.
+
+Cores principais
+Primária – Verde INSS corporativo
+
+#0B7D3B
+Uso: botões principais, destaques, ícones-chave, links importantes.
+Secundária – Azul institucional de apoio
+
+#145FA3
+Uso: botões secundários, áreas informativas, ícones de informação, abas selecionadas.
+Acento – Amarelo suave (inspirado na marca, mas mais discreto)
+
+#F2B73B
+Uso: alertas informativos, pequenos detalhes de destaque, badges, indicadores de status.
+2. Neutros corporativos (para interface limpa) ⚪⚫
+Para ter um visual sério e profissional, os neutros são tão importantes quanto as cores principais:
+
+Fundo principal claro
+
+#F5F7FA – cinza muito claro
+Uso: fundo geral da interface (popup, páginas).
+Fundo de cartões / blocos
+
+#FFFFFF – branco
+Uso: cards de notas, painéis, caixas de conteúdo.
+Bordas e divisores
+
+#D4D9E2 – cinza leve
+Uso: bordas sutis, linhas divisórias, contornos de input.
+Texto principal
+
+#22252C – quase preto
+Uso: títulos, textos importantes, boa legibilidade.
+Texto secundário / rótulos
+
+#5C6473 – cinza médio
+Uso: descrições, subtítulos, metadados, placeholders.
+Desabilitado / menos importante
+
+#A4AABC – cinza suave
+Uso: textos desabilitados, ícones apagados, estados inativos.
+3. Estados de interface (pronto para UI) 💻
+Você pode usar algo assim em CSS, por exemplo:
+
+Botões
+Primário (ação principal)
+
+Fundo: #0B7D3B
+Texto: #FFFFFF
+Hover: #0A6F35
+Active: #08592A
+Secundário (mais neutro, mas ainda importante)
+
+Fundo: #145FA3
+Texto: #FFFFFF
+Hover: #11528E
+Active: #0D4170
+Terciário (outline)
+
+Fundo: transparent
+Borda: #0B7D3B
+Texto: #0B7D3B
+Hover (fundo leve): #E3F3EB
+Feedback / status
+Sucesso (ok, salvo, concluído)
+
+Verde suave de fundo: #E3F3EB
+Ícone/texto: #0B7D3B
+Atenção (alerta leve)
+
+Fundo: #FFF4DD
+Ícone/texto: #C18516 (mais escuro que o amarelo base)
+Erro (não muito agressivo, mas claro)
+
+Fundo: #FDE7E7
+Ícone/texto: #B3261E
+4. Paleta resumida (pronto para copy & paste) 📋
+text
+Copiar
+
+--primary:        #0B7D3B;
+--primary-hover:  #0A6F35;
+--primary-active: #08592A;
+
+--secondary:        #145FA3;
+--secondary-hover:  #11528E;
+--secondary-active: #0D4170;
+
+--accent:          #F2B73B;
+
+--bg-main:         #F5F7FA;
+--bg-card:         #FFFFFF;
+
+--border-subtle:   #D4D9E2;
+
+--text-main:       #22252C;
+--text-muted:      #5C6473;
+--text-disabled:   #A4AABC;
+
+--success-bg:      #E3F3EB;
+--success-text:    #0B7D3B;
+
+--warning-bg:      #FFF4DD;
+--warning-text:    #C18516;
+
+--error-bg:        #FDE7E7;
+--error-text:      #B3261E;

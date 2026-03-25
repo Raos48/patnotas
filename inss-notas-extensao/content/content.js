@@ -44,7 +44,7 @@ let previewTimer = null;
 // Mutex para processRow (previne race condition)
 const processingRows = new Set();
 
-// Estado de navegação para tratamento de transição de página
+// Navigation state for page transition handling
 let lastUrl = location.href;
 let transitionTimer = null;
 let isProcessingTransition = false;
@@ -784,6 +784,7 @@ function startMutationObserver() {
       isScanning = true;
       try {
         scanAllTables();
+        scanForDraftEditors();
       } finally {
         isScanning = false;
       }
@@ -796,7 +797,7 @@ function startMutationObserver() {
     for (const mutation of mutations) {
       if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
         // Ignorar mutações causadas pela própria extensão
-        if (mutation.target.closest && mutation.target.closest('.inss-nota-container, .inss-nota-sticky, .inss-nota-editor, .inss-nota-preview, .inss-nota-toast-container')) {
+        if (mutation.target.closest && mutation.target.closest('.inss-nota-container, .inss-nota-sticky, .inss-nota-editor, .inss-nota-preview, .inss-nota-toast-container, .inss-stdtext-btn, .inss-stdtext-dropdown, .inss-stdtext-confirm-overlay')) {
           continue;
         }
 
@@ -808,7 +809,10 @@ function startMutationObserver() {
               node.classList.contains('inss-nota-sticky') ||
               node.classList.contains('inss-nota-editor') ||
               node.classList.contains('inss-nota-preview') ||
-              node.classList.contains('inss-nota-toast-container')
+              node.classList.contains('inss-nota-toast-container') ||
+              node.classList.contains('inss-stdtext-btn') ||
+              node.classList.contains('inss-stdtext-dropdown') ||
+              node.classList.contains('inss-stdtext-confirm-overlay')
             )) {
               continue;
             }
@@ -862,6 +866,8 @@ function startMutationObserver() {
 
   return mainObserver;
 }
+
+// ============ PAGE TRANSITION HANDLERS ============
 
 function handlePageTransitionDebounced() {
   if (transitionTimer) {
@@ -918,13 +924,13 @@ function setupNavigationHandlers() {
     titleObserver.observe(titleEl, { subtree: true, characterData: true });
   }
 
-  // Poll as fallback for SPA frameworks that don't trigger title mutations
+  // Poll as fallback for SPA frameworks
   navPollInterval = setInterval(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       handlePageTransitionDebounced();
     }
-  }, 2000); // Check every 2 seconds
+  }, 2000);
 
   navigationHandlersInstalled = true;
   console.log('[NotasPat] Navigation handlers installed');
@@ -964,13 +970,278 @@ async function syncTheme() {
   }
 }
 
-// Listen for theme changes
+// Listen for storage changes (theme + standard texts cache)
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.theme) {
-    isDarkTheme = changes.theme.newValue === 'dark';
-    document.body.classList.toggle('inss-dark-theme', isDarkTheme);
+  if (namespace === 'local') {
+    if (changes.theme) {
+      isDarkTheme = changes.theme.newValue === 'dark';
+      document.body.classList.toggle('inss-dark-theme', isDarkTheme);
+    }
+    if (changes.standard_texts) {
+      stdTextsCache = null; // Invalidate cache
+    }
   }
 });
+
+// ============ TEXTOS PADRAO ============
+
+let stdTextsCache = null;
+
+async function loadStdTextsCache() {
+  if (stdTextsCache === null) {
+    try {
+      stdTextsCache = await withTimeout(getStandardTexts(), 5000);
+    } catch (err) {
+      console.warn('[NotasPat] Erro ao carregar textos padrao:', err.message);
+      stdTextsCache = [];
+    }
+  }
+  return stdTextsCache;
+}
+
+const processedEditors = new WeakSet();
+
+function scanForDraftEditors() {
+  const editors = document.querySelectorAll('.public-DraftEditor-content[contenteditable="true"]');
+  console.log('[NotasPat] scanForDraftEditors: encontrados', editors.length, 'editores');
+  editors.forEach(editor => {
+    if (processedEditors.has(editor)) return;
+    processedEditors.add(editor);
+    console.log('[NotasPat] Novo editor Draft.js detectado, injetando botao...');
+    injectStdTextButton(editor);
+  });
+}
+
+/**
+ * Observer dedicado para detectar editores Draft.js em modais
+ * que aparecem fora do escopo do observer de tabelas.
+ */
+function startDraftEditorObserver() {
+  let scanTimer = null;
+
+  const draftObserver = new MutationObserver((mutations) => {
+    let shouldScan = false;
+
+    for (const mutation of mutations) {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          // Ignorar elementos da extensao
+          if (node.classList && (
+            node.classList.contains('inss-stdtext-btn') ||
+            node.classList.contains('inss-stdtext-dropdown') ||
+            node.classList.contains('inss-stdtext-confirm-overlay')
+          )) continue;
+
+          // Verificar se o nodo adicionado contem um editor Draft.js
+          if (node.classList?.contains('public-DraftEditor-content') ||
+              node.querySelector?.('.public-DraftEditor-content[contenteditable="true"]')) {
+            shouldScan = true;
+            break;
+          }
+          // Verificar containers de modais de despacho
+          if (node.classList?.contains('add-despacho-container') ||
+              node.classList?.contains('DraftEditor-root') ||
+              node.id?.startsWith('modal-despacho')) {
+            shouldScan = true;
+            break;
+          }
+        }
+      }
+      if (shouldScan) break;
+    }
+
+    if (shouldScan) {
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(() => {
+        console.log('[NotasPat] Modal/editor detectado pelo DraftEditorObserver');
+        scanForDraftEditors();
+      }, 200);
+    }
+  });
+
+  draftObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  console.log('[NotasPat] DraftEditorObserver iniciado (observando body)');
+  return draftObserver;
+}
+
+function injectStdTextButton(editorElement) {
+  const root = editorElement.closest('.DraftEditor-root') || editorElement.parentElement;
+  if (!root) {
+    console.warn('[NotasPat] injectStdTextButton: nao encontrou container root para o editor');
+    return;
+  }
+
+  console.log('[NotasPat] injectStdTextButton: root encontrado:', root.className);
+
+  const rootStyle = window.getComputedStyle(root);
+  if (rootStyle.position === 'static') {
+    root.style.position = 'relative';
+  }
+
+  const btn = document.createElement('button');
+  btn.className = 'inss-stdtext-btn';
+  btn.title = 'Inserir texto padrao';
+  btn.textContent = '\u{1F4CB}';
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleStdTextDropdown(btn, editorElement);
+  });
+
+  root.appendChild(btn);
+  console.log('[NotasPat] Botao de texto padrao injetado com sucesso');
+}
+
+let activeDropdown = null;
+
+function toggleStdTextDropdown(btn, editorElement) {
+  if (activeDropdown) {
+    activeDropdown.remove();
+    activeDropdown = null;
+    return;
+  }
+  showStdTextDropdown(btn, editorElement);
+}
+
+async function showStdTextDropdown(btn, editorElement) {
+  const texts = await loadStdTextsCache();
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'inss-stdtext-dropdown';
+
+  const search = document.createElement('input');
+  search.type = 'text';
+  search.className = 'inss-stdtext-search';
+  search.placeholder = 'Buscar texto padrao...';
+  dropdown.appendChild(search);
+
+  const list = document.createElement('div');
+  list.className = 'inss-stdtext-list';
+  dropdown.appendChild(list);
+
+  function renderList(filter) {
+    list.innerHTML = '';
+    const query = (filter || '').toLowerCase();
+    const filtered = texts.filter(t =>
+      t.title.toLowerCase().includes(query) || t.text.toLowerCase().includes(query)
+    );
+
+    if (filtered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'inss-stdtext-empty';
+      empty.textContent = texts.length === 0
+        ? 'Nenhum texto padrao cadastrado.'
+        : 'Nenhum resultado encontrado.';
+      list.appendChild(empty);
+
+      if (texts.length === 0) {
+        const openLink = document.createElement('button');
+        openLink.className = 'inss-stdtext-open-manager';
+        openLink.textContent = 'Gerenciar textos padrao';
+        openLink.addEventListener('click', () => {
+          chrome.runtime.sendMessage({ action: 'openStdTextsPage' });
+          dropdown.remove();
+          activeDropdown = null;
+        });
+        list.appendChild(openLink);
+      }
+      return;
+    }
+
+    filtered.forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'inss-stdtext-item';
+
+      const title = document.createElement('div');
+      title.className = 'inss-stdtext-item-title';
+      title.textContent = t.title;
+      item.appendChild(title);
+
+      const preview = document.createElement('div');
+      preview.className = 'inss-stdtext-item-preview';
+      preview.textContent = t.text.length > 60 ? t.text.substring(0, 60) + '...' : t.text;
+      item.appendChild(preview);
+
+      item.addEventListener('click', () => {
+        insertTextIntoDraftEditor(editorElement, t.text);
+        dropdown.remove();
+        activeDropdown = null;
+      });
+      list.appendChild(item);
+    });
+  }
+
+  let searchTimer = null;
+  search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderList(search.value), 150);
+  });
+
+  renderList('');
+
+  btn.parentElement.appendChild(dropdown);
+  activeDropdown = dropdown;
+
+  setTimeout(() => search.focus(), 50);
+
+  function onOutsideClick(e) {
+    if (!dropdown.contains(e.target) && e.target !== btn) {
+      dropdown.remove();
+      activeDropdown = null;
+      document.removeEventListener('click', onOutsideClick, true);
+    }
+  }
+  setTimeout(() => document.addEventListener('click', onOutsideClick, true), 10);
+
+  function onEscape(e) {
+    if (e.key === 'Escape') {
+      dropdown.remove();
+      activeDropdown = null;
+      document.removeEventListener('keydown', onEscape, true);
+    }
+  }
+  document.addEventListener('keydown', onEscape, true);
+}
+
+function insertTextIntoDraftEditor(editorElement, text) {
+  editorElement.focus();
+
+  // Inserir na posicao do cursor sem selecionar tudo,
+  // preservando texto existente
+
+  // Usar paste event para injetar texto - Draft.js trata paste events
+  // internamente sem conflitar com o React DOM reconciler
+  try {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/plain', text);
+
+    const pasteEvent = new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dataTransfer
+    });
+
+    editorElement.dispatchEvent(pasteEvent);
+    console.log('[NotasPat] Texto padrao inserido via paste event');
+  } catch (e) {
+    console.error('[NotasPat] Erro ao inserir texto via paste:', e);
+    // Fallback: tentar via clipboard API real
+    try {
+      navigator.clipboard.writeText(text).then(() => {
+        document.execCommand('paste');
+        console.log('[NotasPat] Texto padrao inserido via clipboard fallback');
+      });
+    } catch (e2) {
+      console.error('[NotasPat] Todos os metodos de insercao falharam:', e2);
+    }
+  }
+}
+
 
 // ============ INICIALIZAÇÃO ============
 
@@ -1044,6 +1315,12 @@ async function init() {
 
     // Process tables
     tryProcessTables(20, 500);
+
+    // Observar modais de despacho para injetar botao de textos padrao
+    startDraftEditorObserver();
+
+    // Scan inicial para editores que ja existam no DOM
+    setTimeout(() => scanForDraftEditors(), 2000);
 
   } catch (error) {
     console.error('[NotasPat] Erro ao inicializar:', error);
