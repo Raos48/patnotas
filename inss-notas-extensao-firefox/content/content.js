@@ -45,6 +45,11 @@ let previewTimer = null;
 // Mutex para processRow (previne race condition)
 const processingRows = new Set();
 
+// Estado de navegação para tratamento de transição de página
+let lastUrl = location.href;
+let transitionTimer = null;
+let isProcessingTransition = false;
+
 /**
  * Executa uma Promise com timeout de segurança
  * @param {Promise} promise - Promise a executar
