@@ -865,6 +865,23 @@ function handlePageTransitionDebounced() {
   transitionTimer = setTimeout(handlePageTransition, 300);
 }
 
+function handlePageTransition() {
+  if (isProcessingTransition) {
+    console.log('[NotasPat] Transition already in progress, skipping');
+    return;
+  }
+
+  isProcessingTransition = true;
+  console.log('[NotasPat] Page transition detected, re-processing tables');
+
+  try {
+    // Re-scan tables - isRowProcessed() will handle stale container removal inline
+    scanAllTables();
+  } finally {
+    isProcessingTransition = false;
+  }
+}
+
 // ============ KEYBOARD SHORTCUTS ============
 
 function setupKeyboardShortcuts() {
