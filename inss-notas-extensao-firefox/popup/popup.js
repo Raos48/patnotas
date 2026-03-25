@@ -172,7 +172,16 @@ async function loadTheme() {
 
 function applyTheme() {
   document.body.classList.toggle('dark-theme', isDarkTheme);
-  themeToggle.textContent = isDarkTheme ? '☀️' : '🌙';
+  // Toggle SVG icons for theme button
+  const moonIcon = themeToggle.querySelector('.theme-icon-moon');
+  const sunIcon = themeToggle.querySelector('.theme-icon-sun');
+  if (moonIcon && sunIcon) {
+    moonIcon.style.display = isDarkTheme ? 'none' : 'block';
+    sunIcon.style.display = isDarkTheme ? 'block' : 'none';
+  } else {
+    // Fallback for emoji-based toggle
+    themeToggle.textContent = isDarkTheme ? '☀️' : '🌙';
+  }
   themeToggle.title = isDarkTheme ? 'Tema claro' : 'Tema escuro';
 }
 
@@ -378,10 +387,16 @@ function showToast(message, type = 'success') {
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  toast.innerHTML = `
-    <span class="toast-icon">${icons[type] || icons.success}</span>
-    <span>${message}</span>
-  `;
+
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'toast-icon';
+  iconSpan.textContent = icons[type] || icons.success;
+
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = message;
+
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
 
   toastContainer.appendChild(toast);
 
@@ -562,9 +577,9 @@ function loadMoreNotes() {
 
 function createNoteItem(protocolo, nota) {
   const date = formatDate(nota.updatedAt);
-  const tags = nota.tags || [];
+  const tags = (nota.tags || []).filter(t => TAGS_DISPONIVEIS.includes(t));
   const tagsHtml = tags.map(tag =>
-    `<span class="tag tag-${tag}">${getTagLabel(tag)}</span>`
+    `<span class="tag tag-${escapeAttr(tag)}">${escapeHtml(getTagLabel(tag))}</span>`
   ).join('');
 
   // Escapar dados do usuário
@@ -730,12 +745,15 @@ function updateCharCounter() {
 }
 
 function renderSelectedTags() {
-  editTags.innerHTML = selectedTags.map(tag => `
-    <span class="tag tag-${tag}" data-tag="${tag}">
-      ${getTagLabel(tag)}
-      <span class="tag-remove" data-tag="${tag}">×</span>
+  editTags.innerHTML = selectedTags.map(tag => {
+    const safeTag = escapeAttr(tag);
+    return `
+    <span class="tag tag-${safeTag}" data-tag="${safeTag}">
+      ${escapeHtml(getTagLabel(tag))}
+      <span class="tag-remove" data-tag="${safeTag}">×</span>
     </span>
-  `).join('');
+  `;
+  }).join('');
 
   editTags.querySelectorAll('.tag-remove').forEach(btn => {
     btn.addEventListener('click', (e) => {

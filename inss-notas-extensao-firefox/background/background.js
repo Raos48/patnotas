@@ -187,7 +187,7 @@ async function updateBadge() {
 
     if (count > 0) {
       chrome.action.setBadgeText({ text: count.toString() });
-      chrome.action.setBadgeBackgroundColor({ color: '#1351b4' });
+      chrome.action.setBadgeBackgroundColor({ color: '#0B7D3B' });
     } else {
       chrome.action.setBadgeText({ text: '' });
     }

@@ -3,14 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NotasPat - Textos Padrao</title>
+  <title>NotasPat - Textos Padrão</title>
+  <link rel="stylesheet" href="../fonts/fonts.css">
   <link rel="stylesheet" href="stdtexts.css">
 </head>
 <body>
   <div class="stdtexts-container">
     <header class="stdtexts-header">
-      <h1>📋 Textos Padrao</h1>
-      <span class="subtitle">Gerenciar textos reutilizaveis</span>
+      <div class="header-brand">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+        </svg>
+        <h1>Textos Padrão</h1>
+      </div>
+      <span class="subtitle">Gerenciar textos reutilizáveis</span>
     </header>
 
     <div class="stdtexts-body">
@@ -21,7 +28,10 @@
           <button id="btnExport" class="btn-secondary btn-sm">Exportar</button>
           <button id="btnImportFile" class="btn-secondary btn-sm">Importar</button>
           <input type="file" id="fileInput" accept=".json" style="display: none;">
-          <button id="btnNew" class="btn-primary btn-sm">+ Novo</button>
+          <button id="btnNew" class="btn-primary btn-sm">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo
+          </button>
         </div>
       </div>
 
@@ -38,13 +48,13 @@
       <!-- Form (hidden by default) -->
       <div id="formSection" class="form-section" style="display: none;">
         <div class="form-group">
-          <label for="inputTitle">Titulo</label>
-          <input type="text" id="inputTitle" maxlength="100" placeholder="Titulo do texto padrao">
+          <label for="inputTitle">Título</label>
+          <input type="text" id="inputTitle" maxlength="100" placeholder="Título do texto padrão">
           <span class="form-hint" id="titleHint">0/100</span>
         </div>
         <div class="form-group">
-          <label for="inputText">Conteudo</label>
-          <textarea id="inputText" rows="6" placeholder="Conteudo do texto padrao (minimo 30 caracteres)"></textarea>
+          <label for="inputText">Conteúdo</label>
+          <textarea id="inputText" rows="6" placeholder="Conteúdo do texto padrão (mínimo 30 caracteres)"></textarea>
           <span class="form-hint" id="textHint">0 caracteres</span>
         </div>
         <div class="form-actions">

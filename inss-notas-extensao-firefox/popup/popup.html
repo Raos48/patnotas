@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NotasPat - Notas Adesivas</title>
+  <link rel="stylesheet" href="../fonts/fonts.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -14,31 +15,58 @@
     <!-- Header -->
     <header class="popup-header">
       <div class="popup-header-left">
-        <h1>📝 NotasPat</h1>
-        <span class="subtitle">Notas Adesivas para Tarefas</span>
+        <div class="header-brand">
+          <span class="brand-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </span>
+          <div>
+            <h1>NotasPat</h1>
+            <span class="subtitle">Notas adesivas para tarefas</span>
+          </div>
+        </div>
       </div>
       <button id="themeToggle" class="theme-toggle" title="Alternar tema">
-        🌙
+        <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
       </button>
     </header>
 
     <!-- Alerta de desempenho -->
     <div id="storageWarning" class="storage-warning" style="display: none;">
       <div class="storage-warning-content">
-        <span class="storage-warning-icon">&#9888;</span>
+        <span class="storage-warning-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        </span>
         <div class="storage-warning-text">
           <strong>Atenção: muitas notas salvas!</strong>
           <p id="storageWarningMessage"></p>
         </div>
-        <button id="storageWarningDismiss" class="storage-warning-dismiss" title="Fechar">&times;</button>
+        <button id="storageWarningDismiss" class="storage-warning-dismiss" title="Fechar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
     </div>
 
     <!-- Estatísticas -->
     <div id="statsSection" class="stats-section">
       <div class="stats-toggle" id="statsToggle">
-        <span>📊 Estatísticas</span>
-        <span class="stats-toggle-icon">▼</span>
+        <span class="stats-toggle-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Estatísticas
+        </span>
+        <span class="stats-toggle-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
       </div>
       <div class="stats-content">
         <div class="stats-grid">
@@ -57,37 +85,44 @@
 
     <!-- Busca -->
     <div class="search-section">
-      <input
-        type="text"
-        id="searchInput"
-        class="search-input"
-        placeholder="🔍 Buscar por protocolo ou texto..."
-      />
+      <div class="search-wrapper">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="Buscar por protocolo ou texto..."
+        />
+      </div>
     </div>
 
     <!-- Filtros -->
     <div class="filters-section">
-      <select id="filterOrder" class="filter-select" title="Ordenar por">
-        <option value="date-desc">📅 Mais recente</option>
-        <option value="date-asc">📅 Mais antigo</option>
-        <option value="protocolo">🔢 Protocolo</option>
-      </select>
-      <select id="filterColor" class="filter-select" title="Filtrar por cor">
-        <option value="all">🎨 Todas as cores</option>
-        <option value="#fff8c6">🟡 Amarelo</option>
-        <option value="#c6f8cf">🟢 Verde</option>
-        <option value="#c6e5f8">🔵 Azul</option>
-        <option value="#f8c6d4">🔴 Rosa</option>
-        <option value="#f8e0c6">🟠 Laranja</option>
-        <option value="#e0c6f8">🟣 Roxo</option>
-      </select>
-      <select id="filterTag" class="filter-select" title="Filtrar por tag">
-        <option value="all">🏷️ Todas as tags</option>
-        <option value="urgente">🔴 Urgente</option>
-        <option value="pendencia">🟡 Pendência</option>
-        <option value="lembrete">🔵 Lembrete</option>
-        <option value="concluido">🟢 Concluído</option>
-      </select>
+      <div class="filter-group">
+        <select id="filterOrder" class="filter-select" title="Ordenar por">
+          <option value="date-desc">Mais recente</option>
+          <option value="date-asc">Mais antigo</option>
+          <option value="protocolo">Protocolo</option>
+        </select>
+        <select id="filterColor" class="filter-select" title="Filtrar por cor">
+          <option value="all">Todas as cores</option>
+          <option value="#fff8c6">Amarelo</option>
+          <option value="#c6f8cf">Verde</option>
+          <option value="#c6e5f8">Azul</option>
+          <option value="#f8c6d4">Rosa</option>
+          <option value="#f8e0c6">Laranja</option>
+          <option value="#e0c6f8">Roxo</option>
+        </select>
+        <select id="filterTag" class="filter-select" title="Filtrar por tag">
+          <option value="all">Todas as tags</option>
+          <option value="urgente">Urgente</option>
+          <option value="pendencia">Pendência</option>
+          <option value="lembrete">Lembrete</option>
+          <option value="concluido">Concluído</option>
+        </select>
+      </div>
     </div>
 
     <!-- Contador -->
@@ -98,21 +133,30 @@
     <!-- Lista de Notas -->
     <div class="notes-list" id="notesList">
       <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.4">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
         <p>Nenhuma nota salva ainda.</p>
-        <small>Clique em "📝 Nota" na página de tarefas para adicionar.</small>
+        <small>Clique em "Nota" na página de tarefas para adicionar.</small>
       </div>
     </div>
 
     <!-- Ações -->
     <div class="actions-section">
       <button id="btnExport" class="btn-action" title="Exportar notas">
-        📤 Exportar
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Exportar</span>
       </button>
       <button id="btnImport" class="btn-action" title="Importar notas">
-        📥 Importar
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Importar</span>
       </button>
       <button id="btnStdTexts" class="btn-action" title="Textos Padrao">
-        📋 Textos Padrao
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+        <span>Textos</span>
       </button>
       <input type="file" id="fileInput" accept=".json" style="display: none;">
     </div>
@@ -120,18 +164,18 @@
     <!-- Painel de Textos Padrao -->
     <div id="stdTextsPanel" class="stdtexts-panel" style="display: none;">
       <div class="stdtexts-header">
-        <h3>Textos Padrao</h3>
+        <h3>Textos Padrão</h3>
         <div class="stdtexts-header-actions">
           <input type="text" id="stdTextsSearch" class="stdtexts-search-input" placeholder="Buscar...">
-          <button id="btnOpenStdTextsPage" class="btn-action btn-small" title="Abrir pagina dedicada">
-            &#8599;
+          <button id="btnOpenStdTextsPage" class="btn-icon-sm" title="Abrir pagina dedicada">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </button>
         </div>
       </div>
       <div id="stdTextsList" class="stdtexts-list"></div>
       <div id="stdTextsForm" class="stdtexts-form" style="display: none;">
-        <input type="text" id="stdTextTitle" class="stdtexts-input" placeholder="Titulo (obrigatorio)" maxlength="100">
-        <textarea id="stdTextContent" class="stdtexts-textarea" placeholder="Conteudo do texto padrao (min. 30 caracteres)" rows="4"></textarea>
+        <input type="text" id="stdTextTitle" class="stdtexts-input" placeholder="Título (obrigatório)" maxlength="100">
+        <textarea id="stdTextContent" class="stdtexts-textarea" placeholder="Conteúdo do texto padrão (mín. 30 caracteres)" rows="4"></textarea>
         <div class="stdtexts-form-footer">
           <span id="stdTextCharCount" class="stdtexts-char-count">0 caracteres</span>
           <div class="stdtexts-form-buttons">
@@ -140,12 +184,16 @@
           </div>
         </div>
       </div>
-      <button id="btnAddStdText" class="btn-primary stdtexts-add-btn">+ Novo Texto</button>
+      <button id="btnAddStdText" class="btn-primary stdtexts-add-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo Texto
+      </button>
     </div>
 
     <!-- Footer -->
     <footer class="popup-footer">
       <span class="version">v1.3.5</span>
+      <span class="footer-credit">NotasPat</span>
     </footer>
   </div>
 
@@ -154,7 +202,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Editar Nota</h2>
-        <button class="modal-close" id="modalClose">&times;</button>
+        <button class="modal-close" id="modalClose">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -164,8 +214,9 @@
         <div class="form-group">
           <label for="editText">Texto da Nota</label>
           <div class="templates-dropdown" id="templatesDropdown">
-            <button type="button" class="btn-action" id="btnTemplates" style="margin-bottom: 8px; width: 100%;">
-              📋 Usar Template
+            <button type="button" class="btn-templates" id="btnTemplates">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              Usar Template
             </button>
             <div class="templates-list" id="templatesList"></div>
           </div>
@@ -175,7 +226,7 @@
         <div class="form-group">
           <label>Tags</label>
           <div class="tags-container" id="editTags"></div>
-          <div class="tags-container" id="availableTags" style="margin-top: 8px;">
+          <div class="tags-container available-tags" id="availableTags">
             <span class="tag tag-urgente" data-tag="urgente">+ Urgente</span>
             <span class="tag tag-pendencia" data-tag="pendencia">+ Pendência</span>
             <span class="tag tag-lembrete" data-tag="lembrete">+ Lembrete</span>
@@ -198,7 +249,7 @@
   <div id="confirmModal" class="modal">
     <div class="modal-content confirm-modal">
       <div class="modal-body">
-        <div class="confirm-icon" id="confirmIcon">⚠️</div>
+        <div class="confirm-icon" id="confirmIcon">&#9888;&#65039;</div>
         <div class="confirm-message" id="confirmMessage">Tem certeza?</div>
         <div class="confirm-sub" id="confirmSub"></div>
       </div>
@@ -213,7 +264,9 @@
   <div id="importModal" class="modal">
     <div class="modal-content confirm-modal">
       <div class="modal-body">
-        <div class="confirm-icon">📥</div>
+        <div class="confirm-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </div>
         <div class="confirm-message" id="importModalMessage">Importar notas</div>
         <div class="confirm-sub" id="importModalSub"></div>
       </div>
@@ -230,7 +283,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Gerenciar Templates</h2>
-        <button class="modal-close" id="templatesModalClose">&times;</button>
+        <button class="modal-close" id="templatesModalClose">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -242,7 +297,8 @@
           <textarea id="newTemplateText" rows="3" placeholder="Texto do template..."></textarea>
         </div>
         <button id="btnAddTemplate" class="btn-primary" style="width: 100%; margin-bottom: 16px;">
-          ➕ Adicionar Template
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Adicionar Template
         </button>
         <div id="savedTemplates"></div>
       </div>
