@@ -76,7 +76,26 @@ function getProtocoloFromRow(tr) {
 }
 
 function isRowProcessed(tr) {
-  return tr.querySelector('.inss-nota-container') !== null;
+  const existing = tr.querySelector('.inss-nota-container');
+  if (!existing) return false;
+
+  // Validate container matches current row's protocolo
+  const protocolo = getProtocoloFromRow(tr);
+  const containerProtocolo = existing.dataset.protocolo;
+
+  // Check for stale container: protocolo mismatch OR undefined dataset (migration case)
+  if (protocolo && (containerProtocolo === undefined || containerProtocolo !== protocolo)) {
+    // Stale container from previous page - remove and reprocess
+    try {
+      existing.remove();
+    } catch (e) {
+      // DOM may be in transition state, log and continue
+      console.warn('[NotasPat] Failed to remove stale container:', e);
+    }
+    return false;
+  }
+
+  return true;
 }
 
 function getInteressadoTD(tr) {
