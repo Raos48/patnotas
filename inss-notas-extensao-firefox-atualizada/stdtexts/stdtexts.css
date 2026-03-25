@@ -1,0 +1,247 @@
+/**
+ * Estilos da pagina Textos Padrao - NotasPat
+ */
+
+:root {
+  --bg-primary: #f5f5f5;
+  --bg-card: #ffffff;
+  --text-primary: #333333;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+  --border-color: #e0e0e0;
+  --accent-primary: #1351b4;
+  --accent-secondary: #0d3d8a;
+  --accent-light: rgba(19, 81, 180, 0.08);
+  --shadow: rgba(0, 0, 0, 0.08);
+  --success-color: #059669;
+  --success-bg: #d1fae5;
+  --error-color: #dc2626;
+  --error-bg: #fee2e2;
+  --input-bg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1a1a2e;
+    --bg-card: #16213e;
+    --text-primary: #e8e8e8;
+    --text-secondary: #b8b8b8;
+    --text-muted: #888888;
+    --border-color: #2d3748;
+    --accent-primary: #4a90d9;
+    --accent-secondary: #3b7dd8;
+    --accent-light: rgba(74, 144, 217, 0.12);
+    --shadow: rgba(0, 0, 0, 0.3);
+    --success-color: #6ee7b7;
+    --success-bg: #1e3a2f;
+    --error-color: #fca5a5;
+    --error-bg: #3b1f1f;
+    --input-bg: #1a1a2e;
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.stdtexts-container {
+  width: 100%;
+  max-width: 600px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px var(--shadow);
+  overflow: hidden;
+}
+
+.stdtexts-header {
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  color: #fff;
+  padding: 20px 24px;
+  text-align: center;
+}
+
+.stdtexts-header h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.stdtexts-header .subtitle { font-size: 13px; opacity: 0.9; }
+
+.stdtexts-body { padding: 20px 24px; }
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.toolbar-search {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Buttons */
+.btn-primary, .btn-secondary, .btn-danger {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+
+.btn-primary { background: var(--accent-primary); color: #fff; }
+.btn-primary:hover { background: var(--accent-secondary); }
+.btn-secondary { background: var(--border-color); color: var(--text-primary); }
+.btn-secondary:hover { opacity: 0.85; }
+.btn-danger { background: #dc3545; color: #fff; }
+.btn-danger:hover { background: #c82333; }
+
+/* Form */
+.form-section {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.form-group { margin-bottom: 12px; }
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.form-group input, .form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.form-group textarea { resize: vertical; min-height: 100px; }
+.form-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; display: block; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Text cards */
+.texts-list { display: flex; flex-direction: column; gap: 8px; }
+
+.text-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: box-shadow 0.15s;
+}
+
+.text-card:hover { box-shadow: 0 2px 8px var(--shadow); }
+
+.text-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.text-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.text-card-actions { display: flex; gap: 6px; }
+
+.text-card-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.text-card-btn:hover { background: var(--accent-light); }
+.text-card-btn-danger:hover { background: var(--error-bg); color: var(--error-color); }
+
+.text-card-preview {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.text-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.texts-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Import section */
+.import-section {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.import-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.import-actions { display: flex; gap: 8px; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 9999;
+  animation: slideIn 0.3s ease;
+}
+
+.toast-success { background: var(--success-bg); color: var(--success-color); }
+.toast-error { background: var(--error-bg); color: var(--error-color); }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}

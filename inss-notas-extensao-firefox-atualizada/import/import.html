@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NotasPat - Importar Notas</title>
+  <link rel="stylesheet" href="import.css">
+</head>
+<body>
+  <div class="import-container">
+    <!-- Header -->
+    <header class="import-header">
+      <h1>📝 NotasPat</h1>
+      <span class="subtitle">Importar Notas</span>
+    </header>
+
+    <!-- Área principal -->
+    <div class="import-body">
+      <!-- Estado: Seleção de arquivo -->
+      <div id="stateSelect" class="import-state">
+        <div id="dropArea" class="drop-area">
+          <div class="drop-icon">📥</div>
+          <div class="drop-text">Arraste o arquivo aqui</div>
+          <div class="drop-divider"><span>ou</span></div>
+          <button id="btnSelectFile" class="btn-primary">Selecionar arquivo .json</button>
+          <input type="file" id="fileInput" accept=".json" style="display: none;">
+          <div class="drop-hint">Arquivo exportado pelo NotasPat</div>
+        </div>
+      </div>
+
+      <!-- Estado: Escolher modo (mesclar/substituir) -->
+      <div id="stateMode" class="import-state" style="display: none;">
+        <div class="mode-icon">📋</div>
+        <div id="modeFileInfo" class="mode-info"></div>
+        <div class="mode-message" id="modeMessage"></div>
+        <div class="mode-hint">Mesclar mantém suas notas atuais. Substituir apaga todas e importa apenas o arquivo.</div>
+        <div class="mode-actions">
+          <button id="btnMerge" class="btn-primary">Mesclar</button>
+          <button id="btnReplace" class="btn-danger">Substituir</button>
+          <button id="btnModeCancel" class="btn-secondary">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Estado: Processando -->
+      <div id="stateLoading" class="import-state" style="display: none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Importando notas...</div>
+      </div>
+
+      <!-- Estado: Sucesso -->
+      <div id="stateSuccess" class="import-state" style="display: none;">
+        <div class="result-icon success-icon">✓</div>
+        <div class="result-text" id="successText">Notas importadas com sucesso!</div>
+        <div class="result-hint">Você pode fechar esta aba.</div>
+        <button id="btnClose" class="btn-primary">Fechar aba</button>
+      </div>
+
+      <!-- Estado: Erro -->
+      <div id="stateError" class="import-state" style="display: none;">
+        <div class="result-icon error-icon">✕</div>
+        <div class="result-text" id="errorText">Erro ao importar</div>
+        <div class="result-hint" id="errorHint"></div>
+        <button id="btnRetry" class="btn-primary">Tentar novamente</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../lib/storage.js"></script>
+  <script src="import.js"></script>
+</body>
+</html>
