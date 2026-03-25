@@ -911,6 +911,39 @@ function handlePageTransition() {
   }
 }
 
+function setupNavigationHandlers() {
+  // Browser back/forward buttons
+  window.addEventListener('popstate', handlePageTransitionDebounced);
+
+  // bfcache restoration (pageshow event)
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      console.log('[NotasPat] Page restored from bfcache');
+      handlePageTransitionDebounced();
+    }
+  });
+
+  // SPA navigation - detect URL changes efficiently
+  // Use title element as canary (cheaper than observing entire document)
+  const titleEl = document.querySelector('title');
+  if (titleEl) {
+    new MutationObserver(() => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        handlePageTransitionDebounced();
+      }
+    }).observe(titleEl, { subtree: true, characterData: true });
+  }
+
+  // Poll as fallback for SPA frameworks that don't trigger title mutations
+  setInterval(() => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      handlePageTransitionDebounced();
+    }
+  }, 2000); // Check every 2 seconds
+}
+
 // ============ KEYBOARD SHORTCUTS ============
 
 function setupKeyboardShortcuts() {
