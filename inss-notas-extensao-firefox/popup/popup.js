@@ -1,7 +1,6 @@
 /**
  * Popup Script - NotasPat
- * Versão 1.3.0 (Firefox) - Com Dark Mode, Tags, Templates, Filtros e mais
- * Usa browser.* APIs nativas do Firefox.
+ * Versão 1.2.0 - Com Dark Mode, Tags, Templates, Filtros e mais
  */
 
 // ============ CONSTANTES ============
@@ -37,6 +36,23 @@ const btnImport = document.getElementById('btnImport');
 const fileInput = document.getElementById('fileInput');
 const themeToggle = document.getElementById('themeToggle');
 const toastContainer = document.getElementById('toastContainer');
+
+// Standard Texts elements
+const btnStdTexts = document.getElementById('btnStdTexts');
+const stdTextsPanel = document.getElementById('stdTextsPanel');
+const stdTextsSearch = document.getElementById('stdTextsSearch');
+const stdTextsList = document.getElementById('stdTextsList');
+const stdTextsForm = document.getElementById('stdTextsForm');
+const stdTextTitle = document.getElementById('stdTextTitle');
+const stdTextContent = document.getElementById('stdTextContent');
+const stdTextCharCount = document.getElementById('stdTextCharCount');
+const btnAddStdText = document.getElementById('btnAddStdText');
+const btnSaveStdText = document.getElementById('btnSaveStdText');
+const btnCancelStdText = document.getElementById('btnCancelStdText');
+const btnOpenStdTextsPage = document.getElementById('btnOpenStdTextsPage');
+
+let stdTextsData = [];
+let editingStdTextId = null;
 
 // Filtros
 const filterOrder = document.getElementById('filterOrder');
@@ -93,7 +109,7 @@ const importModalSub = document.getElementById('importModalSub');
 const importCancel = document.getElementById('importCancel');
 const importMerge = document.getElementById('importMerge');
 const importReplace = document.getElementById('importReplace');
-let pendingImportFile = null;
+let pendingImportText = null;
 
 // ============ UTILIDADES - DEBOUNCE ============
 
@@ -140,7 +156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadTheme() {
   try {
-    const result = await browser.storage.local.get(['theme']);
+    const result = await chrome.storage.local.get(['theme']);
     isDarkTheme = result.theme === 'dark';
     
     // Detectar preferência do sistema se não houver preferência salva
@@ -164,7 +180,7 @@ async function toggleTheme() {
   isDarkTheme = !isDarkTheme;
   applyTheme();
   try {
-    await browser.storage.local.set({ theme: isDarkTheme ? 'dark' : 'light' });
+    await chrome.storage.local.set({ theme: isDarkTheme ? 'dark' : 'light' });
     showToast(`Tema ${isDarkTheme ? 'escuro' : 'claro'} ativado`, 'success');
   } catch (error) {
     console.error('Erro ao salvar tema:', error);
@@ -201,7 +217,7 @@ async function verifyStorageHealth() {
 
 async function loadTemplates() {
   try {
-    const result = await browser.storage.local.get(['templates']);
+    const result = await chrome.storage.local.get(['templates']);
     templatesData = result.templates || [...TEMPLATES_PADRAO];
     renderTemplatesList();
     renderSavedTemplates();
@@ -230,8 +246,34 @@ function setupEventListeners() {
 
   // Exportar/Importar
   btnExport.addEventListener('click', exportNotesToFile);
-  btnImport.addEventListener('click', () => fileInput.click());
+  btnImport.addEventListener('click', () => {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('import/import.html')
+    });
+    window.close();
+  });
   fileInput.addEventListener('change', importNotesFromFile);
+
+  // Standard Texts events
+  btnStdTexts.addEventListener('click', toggleStdTextsPanel);
+  btnAddStdText.addEventListener('click', () => showStdTextForm());
+  btnSaveStdText.addEventListener('click', handleSaveStdText);
+  btnCancelStdText.addEventListener('click', hideStdTextForm);
+  btnOpenStdTextsPage.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('stdtexts/stdtexts.html') });
+  });
+
+  stdTextContent.addEventListener('input', () => {
+    const len = stdTextContent.value.trim().length;
+    stdTextCharCount.textContent = `${len} caractere${len !== 1 ? 's' : ''}`;
+    stdTextCharCount.style.color = len < 30 ? '#dc3545' : '';
+  });
+
+  let stdTextsSearchTimer = null;
+  stdTextsSearch.addEventListener('input', () => {
+    clearTimeout(stdTextsSearchTimer);
+    stdTextsSearchTimer = setTimeout(() => renderStdTextsList(), 300);
+  });
 
   // Modal de Edição
   modalClose.addEventListener('click', closeEditModal);
@@ -296,14 +338,14 @@ function setupEventListeners() {
   // Modal de Importação
   importCancel.addEventListener('click', closeImportModal);
   importMerge.addEventListener('click', async () => {
-    const file = pendingImportFile;
+    const text = pendingImportText;
     closeImportModal();
-    if (file) await doImport(file);
+    if (text) await doImport(text);
   });
   importReplace.addEventListener('click', async () => {
-    const file = pendingImportFile;
+    const text = pendingImportText;
     closeImportModal();
-    if (file) await doReplaceImport(file);
+    if (text) await doReplaceImport(text);
   });
   importModal.addEventListener('click', (e) => {
     if (e.target === importModal) closeImportModal();
@@ -336,13 +378,10 @@ function showToast(message, type = 'success') {
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  const iconSpan = document.createElement('span');
-  iconSpan.className = 'toast-icon';
-  iconSpan.textContent = icons[type] || icons.success;
-  const msgSpan = document.createElement('span');
-  msgSpan.textContent = message;
-  toast.appendChild(iconSpan);
-  toast.appendChild(msgSpan);
+  toast.innerHTML = `
+    <span class="toast-icon">${icons[type] || icons.success}</span>
+    <span>${message}</span>
+  `;
 
   toastContainer.appendChild(toast);
 
@@ -369,7 +408,7 @@ function closeConfirmModal() {
 
 function closeImportModal() {
   importModal.classList.remove('active');
-  pendingImportFile = null;
+  pendingImportText = null;
 }
 
 // ============ RENDERIZAÇÃO ============
@@ -404,16 +443,10 @@ function updateStatistics() {
     colorCounts[n.color] = (colorCounts[n.color] || 0) + 1;
   });
   
-  colorStats.textContent = '';
-  CORES_NOTAS.forEach(cor => {
+  colorStats.innerHTML = CORES_NOTAS.map(cor => {
     const count = colorCounts[cor.hex] || 0;
-    const stat = document.createElement('div');
-    stat.className = 'color-stat';
-    stat.style.background = cor.hex;
-    stat.title = `${cor.nome}: ${count}`;
-    stat.textContent = count;
-    colorStats.appendChild(stat);
-  });
+    return `<div class="color-stat" style="background: ${cor.hex}" title="${cor.nome}: ${count}">${count}</div>`;
+  }).join('');
 }
 
 function getFilteredNotes() {
@@ -469,19 +502,14 @@ function renderNotes() {
 
   updateCounter();
 
-  notesList.textContent = '';
-
   if (entries.length === 0) {
     const hasSearch = searchInput.value.trim() || filterColor.value !== 'all' || filterTag.value !== 'all';
-    const emptyDiv = document.createElement('div');
-    emptyDiv.className = 'empty-state';
-    const p = document.createElement('p');
-    p.textContent = hasSearch ? 'Nenhuma nota encontrada.' : 'Nenhuma nota salva ainda.';
-    const small = document.createElement('small');
-    small.textContent = hasSearch ? 'Tente ajustar os filtros.' : 'Clique em "📝 Nota" na página de tarefas para adicionar.';
-    emptyDiv.appendChild(p);
-    emptyDiv.appendChild(small);
-    notesList.appendChild(emptyDiv);
+    notesList.innerHTML = `
+      <div class="empty-state">
+        <p>${hasSearch ? 'Nenhuma nota encontrada.' : 'Nenhuma nota salva ainda.'}</p>
+        <small>${hasSearch ? 'Tente ajustar os filtros.' : 'Clique em "📝 Nota" na página de tarefas para adicionar.'}</small>
+      </div>
+    `;
     return;
   }
 
@@ -489,17 +517,38 @@ function renderNotes() {
   const paginated = sorted.slice(0, displayedCount);
   const remaining = sorted.length - displayedCount;
 
-  paginated.forEach(([protocolo, nota]) => {
-    notesList.appendChild(createNoteItemElement(protocolo, nota));
-  });
+  let html = paginated.map(([protocolo, nota]) => createNoteItem(protocolo, nota)).join('');
 
   if (remaining > 0) {
-    const btnLoadMore = document.createElement('button');
-    btnLoadMore.className = 'btn-load-more';
-    btnLoadMore.id = 'btnLoadMore';
-    btnLoadMore.textContent = `Carregar mais (${remaining} restante${remaining !== 1 ? 's' : ''})`;
+    html += `<button class="btn-load-more" id="btnLoadMore">Carregar mais (${remaining} restante${remaining !== 1 ? 's' : ''})</button>`;
+  }
+
+  notesList.innerHTML = html;
+
+  // Event listeners para ações
+  notesList.querySelectorAll('.note-btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => openEditModal(btn.dataset.protocolo));
+  });
+
+  notesList.querySelectorAll('.note-btn-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      showConfirm(
+        `Excluir nota do protocolo ${btn.dataset.protocolo}?`,
+        'Esta ação não pode ser desfeita.',
+        () => deleteNoteByProtocolo(btn.dataset.protocolo),
+        '🗑️'
+      );
+    });
+  });
+
+  notesList.querySelectorAll('.note-btn-copy').forEach(btn => {
+    btn.addEventListener('click', () => copyProtocolo(btn.dataset.protocolo));
+  });
+
+  // Botão carregar mais
+  const btnLoadMore = document.getElementById('btnLoadMore');
+  if (btnLoadMore) {
     btnLoadMore.addEventListener('click', loadMoreNotes);
-    notesList.appendChild(btnLoadMore);
   }
 
   // Drag and drop
@@ -511,97 +560,40 @@ function loadMoreNotes() {
   renderNotes();
 }
 
-function createNoteItemElement(protocolo, nota) {
+function createNoteItem(protocolo, nota) {
   const date = formatDate(nota.updatedAt);
   const tags = nota.tags || [];
+  const tagsHtml = tags.map(tag =>
+    `<span class="tag tag-${tag}">${getTagLabel(tag)}</span>`
+  ).join('');
 
-  const item = document.createElement('div');
-  item.className = 'note-item';
-  item.draggable = true;
-  item.dataset.protocolo = protocolo;
+  // Escapar dados do usuário
+  const safeProtocolo = escapeAttr(protocolo);
+  const safeText = escapeHtml(nota.text);
+  const safeColor = escapeAttr(nota.color);
+  const safeDobra = escapeAttr(getDobraColor(nota.color));
+  const safeTextColor = escapeAttr(getTextColorForBackground(nota.color));
 
-  // Header
-  const header = document.createElement('div');
-  header.className = 'note-header';
-
-  const leftDiv = document.createElement('div');
-  leftDiv.style.cssText = 'display: flex; align-items: center; gap: 8px;';
-  const dragHandle = document.createElement('span');
-  dragHandle.className = 'drag-handle';
-  dragHandle.title = 'Arrastar';
-  dragHandle.textContent = '⋮⋮';
-  const protocoloSpan = document.createElement('span');
-  protocoloSpan.className = 'note-protocolo';
-  protocoloSpan.textContent = protocolo;
-  leftDiv.appendChild(dragHandle);
-  leftDiv.appendChild(protocoloSpan);
-
-  const actionsDiv = document.createElement('div');
-  actionsDiv.className = 'note-actions';
-
-  const btnCopy = document.createElement('button');
-  btnCopy.className = 'note-btn note-btn-copy';
-  btnCopy.dataset.protocolo = protocolo;
-  btnCopy.title = 'Copiar protocolo';
-  btnCopy.textContent = '📋';
-  btnCopy.addEventListener('click', () => copyProtocolo(protocolo));
-
-  const btnEdit = document.createElement('button');
-  btnEdit.className = 'note-btn note-btn-edit';
-  btnEdit.dataset.protocolo = protocolo;
-  btnEdit.title = 'Editar';
-  btnEdit.textContent = '✏️';
-  btnEdit.addEventListener('click', () => openEditModal(protocolo));
-
-  const btnDelete = document.createElement('button');
-  btnDelete.className = 'note-btn note-btn-delete';
-  btnDelete.dataset.protocolo = protocolo;
-  btnDelete.title = 'Excluir';
-  btnDelete.textContent = '🗑️';
-  btnDelete.addEventListener('click', () => {
-    showConfirm(
-      `Excluir nota do protocolo ${protocolo}?`,
-      'Esta ação não pode ser desfeita.',
-      () => deleteNoteByProtocolo(protocolo),
-      '🗑️'
-    );
-  });
-
-  actionsDiv.appendChild(btnCopy);
-  actionsDiv.appendChild(btnEdit);
-  actionsDiv.appendChild(btnDelete);
-  header.appendChild(leftDiv);
-  header.appendChild(actionsDiv);
-  item.appendChild(header);
-
-  // Tags
-  if (tags.length > 0) {
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'tags-container';
-    tags.forEach(tag => {
-      const tagSpan = document.createElement('span');
-      tagSpan.className = `tag tag-${tag}`;
-      tagSpan.textContent = getTagLabel(tag);
-      tagsContainer.appendChild(tagSpan);
-    });
-    item.appendChild(tagsContainer);
-  }
-
-  // Note text
-  const noteText = document.createElement('div');
-  noteText.className = 'note-text';
-  noteText.style.setProperty('--nota-bg', nota.color);
-  noteText.style.setProperty('--nota-dobra', getDobraColor(nota.color));
-  noteText.textContent = nota.text;
-  item.appendChild(noteText);
-
-  // Date
-  const noteDate = document.createElement('div');
-  noteDate.className = 'note-date';
-  noteDate.textContent = `Atualizado: ${date}`;
-  item.appendChild(noteDate);
-
-  return item;
+  return `
+    <div class="note-item" draggable="true" data-protocolo="${safeProtocolo}">
+      <div class="note-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="drag-handle" title="Arrastar">⋮⋮</span>
+          <span class="note-protocolo">${safeProtocolo}</span>
+        </div>
+        <div class="note-actions">
+          <button class="note-btn note-btn-copy" data-protocolo="${safeProtocolo}" title="Copiar protocolo">📋</button>
+          <button class="note-btn note-btn-edit" data-protocolo="${safeProtocolo}" title="Editar">✏️</button>
+          <button class="note-btn note-btn-delete" data-protocolo="${safeProtocolo}" title="Excluir">🗑️</button>
+        </div>
+      </div>
+      ${tags.length > 0 ? `<div class="tags-container">${tagsHtml}</div>` : ''}
+      <div class="note-text" style="--nota-bg: ${safeColor}; --nota-dobra: ${safeDobra}; --nota-text: ${safeTextColor}">
+        ${safeText}
+      </div>
+      <div class="note-date">Atualizado: ${date}</div>
+    </div>
+  `;
 }
 
 function getTagLabel(tag) {
@@ -676,20 +668,21 @@ function handleDrop(e) {
 // ============ MODAL DE EDIÇÃO ============
 
 function createColorPicker() {
-  editColorPicker.textContent = '';
-  CORES_NOTAS.forEach(cor => {
-    const dot = document.createElement('div');
-    dot.className = `color-dot${cor.hex === selectedColor ? ' selected' : ''}`;
-    dot.style.backgroundColor = cor.hex;
-    dot.dataset.color = cor.hex;
-    dot.dataset.dobra = cor.dobra;
-    dot.title = cor.nome;
+  editColorPicker.innerHTML = CORES_NOTAS.map(cor => `
+    <div class="color-dot ${cor.hex === selectedColor ? 'selected' : ''}"
+         style="background-color: ${cor.hex}"
+         data-color="${cor.hex}"
+         data-dobra="${cor.dobra}"
+         title="${cor.nome}">
+    </div>
+  `).join('');
+
+  editColorPicker.querySelectorAll('.color-dot').forEach(dot => {
     dot.addEventListener('click', () => {
       editColorPicker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
       dot.classList.add('selected');
       selectedColor = dot.dataset.color;
     });
-    editColorPicker.appendChild(dot);
   });
 }
 
@@ -737,23 +730,20 @@ function updateCharCounter() {
 }
 
 function renderSelectedTags() {
-  editTags.textContent = '';
-  selectedTags.forEach(tag => {
-    const tagSpan = document.createElement('span');
-    tagSpan.className = `tag tag-${tag}`;
-    tagSpan.dataset.tag = tag;
-    tagSpan.textContent = getTagLabel(tag) + ' ';
-    const removeBtn = document.createElement('span');
-    removeBtn.className = 'tag-remove';
-    removeBtn.dataset.tag = tag;
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', (e) => {
+  editTags.innerHTML = selectedTags.map(tag => `
+    <span class="tag tag-${tag}" data-tag="${tag}">
+      ${getTagLabel(tag)}
+      <span class="tag-remove" data-tag="${tag}">×</span>
+    </span>
+  `).join('');
+
+  editTags.querySelectorAll('.tag-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      const tag = btn.dataset.tag;
       selectedTags = selectedTags.filter(t => t !== tag);
       renderSelectedTags();
     });
-    tagSpan.appendChild(removeBtn);
-    editTags.appendChild(tagSpan);
   });
 }
 
@@ -806,14 +796,19 @@ function copyProtocolo(protocolo) {
 // ============ TEMPLATES ============
 
 function renderTemplatesList() {
-  templatesList.textContent = '';
-  templatesData.forEach(t => {
-    const item = document.createElement('div');
-    item.className = 'template-item';
-    item.dataset.id = t.id;
-    item.textContent = `📋 ${t.nome}`;
+  templatesList.innerHTML = templatesData.map(t => {
+    const safeId = escapeAttr(t.id);
+    const safeNome = escapeHtml(t.nome);
+    return `
+      <div class="template-item" data-id="${safeId}">
+        📋 ${safeNome}
+      </div>
+    `;
+  }).join('');
+
+  templatesList.querySelectorAll('.template-item').forEach(item => {
     item.addEventListener('click', () => {
-      const template = templatesData.find(tmpl => tmpl.id === t.id);
+      const template = templatesData.find(t => t.id === item.dataset.id);
       if (template) {
         editText.value = template.texto;
         updateCharCounter();
@@ -821,49 +816,36 @@ function renderTemplatesList() {
         showToast(`Template "${template.nome}" aplicado`, 'success');
       }
     });
-    templatesList.appendChild(item);
   });
 }
 
 function renderSavedTemplates() {
   if (!savedTemplates) return;
 
-  savedTemplates.textContent = '';
-  templatesData.forEach(t => {
-    const item = document.createElement('div');
-    item.className = 'note-item';
-    item.style.marginBottom = '8px';
+  savedTemplates.innerHTML = templatesData.map(t => {
+    const safeId = escapeAttr(t.id);
+    const safeNome = escapeHtml(t.nome);
+    const safeTexto = escapeHtml(t.texto);
+    return `
+      <div class="note-item" style="margin-bottom: 8px;">
+        <div class="note-header">
+          <span class="note-protocolo">${safeNome}</span>
+          <button class="note-btn" data-id="${safeId}" title="Excluir">🗑️</button>
+        </div>
+        <div class="note-text" style="--nota-bg: #f5f5f5; font-size: 11px;">${safeTexto}</div>
+      </div>
+    `;
+  }).join('');
 
-    const header = document.createElement('div');
-    header.className = 'note-header';
-    const nome = document.createElement('span');
-    nome.className = 'note-protocolo';
-    nome.textContent = t.nome;
-    const btnDel = document.createElement('button');
-    btnDel.className = 'note-btn';
-    btnDel.dataset.id = t.id;
-    btnDel.title = 'Excluir';
-    btnDel.textContent = '🗑️';
-    btnDel.addEventListener('click', () => {
+  savedTemplates.querySelectorAll('.note-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
       showConfirm(
         'Excluir este template?',
         '',
-        () => deleteTemplate(t.id),
+        () => deleteTemplate(btn.dataset.id),
         '🗑️'
       );
     });
-    header.appendChild(nome);
-    header.appendChild(btnDel);
-
-    const text = document.createElement('div');
-    text.className = 'note-text';
-    text.style.setProperty('--nota-bg', '#f5f5f5');
-    text.style.fontSize = '11px';
-    text.textContent = t.texto;
-
-    item.appendChild(header);
-    item.appendChild(text);
-    savedTemplates.appendChild(item);
   });
 }
 
@@ -903,7 +885,7 @@ async function deleteTemplate(id) {
 
 async function saveTemplates() {
   try {
-    await browser.storage.local.set({ templates: templatesData });
+    await chrome.storage.local.set({ templates: templatesData });
   } catch (error) {
     console.error('Erro ao salvar templates:', error);
   }
@@ -936,23 +918,34 @@ async function importNotesFromFile(event) {
   const file = event.target.files[0];
   if (!file) return;
 
+  // Ler conteúdo IMEDIATAMENTE antes de limpar o input.
+  // No Firefox, limpar fileInput.value pode invalidar o objeto File,
+  // e o popup pode fechar ao abrir o diálogo de arquivos.
+  let fileText;
+  try {
+    fileText = await file.text();
+  } catch (error) {
+    console.error('[NotasPat] Erro ao ler arquivo:', error);
+    showToast('Erro ao ler arquivo.', 'error');
+    return;
+  }
+
   fileInput.value = '';
 
   const importCount = Object.keys(notasData).length;
 
   if (importCount > 0) {
-    pendingImportFile = file;
+    pendingImportText = fileText;
     importModalMessage.textContent = `Você tem ${importCount} nota(s) salva(s).`;
     importModalSub.textContent = 'Mesclar mantém suas notas atuais. Substituir apaga todas e importa apenas o arquivo.';
     importModal.classList.add('active');
   } else {
-    await doImport(file);
+    await doImport(fileText);
   }
 }
 
-async function doImport(file) {
+async function doImport(text) {
   try {
-    const text = await file.text();
     await importNotes(text);
     await loadNotes();
     showToast('Notas importadas com sucesso!', 'success');
@@ -963,9 +956,8 @@ async function doImport(file) {
   }
 }
 
-async function doReplaceImport(file) {
+async function doReplaceImport(text) {
   try {
-    const text = await file.text();
     await deleteAllNotes();
     await importNotes(text);
     await loadNotes();
@@ -997,6 +989,30 @@ function getDobraColor(color) {
   return '#f3e58d';
 }
 
+/**
+ * Calcula a cor do texto baseada na luminosidade do fundo
+ * Usa a fórmula de luminosidade relativa (perceptiva)
+ * @param {string} hexColor - Cor de fundo em formato hex (#RRGGBB)
+ * @returns {string} Cor do texto (#1a1a1a para fundos claros, #ffffff para fundos escuros)
+ */
+function getTextColorForBackground(hexColor) {
+  // Remover # se presente
+  const hex = hexColor.replace('#', '');
+
+  // Converter para RGB
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+
+  // Calcular luminosidade relativa (fórmula perceptiva)
+  // Valores: 0 (preto) a 255 (branco)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+
+  // Se luminosidade > 128, fundo é claro → texto escuro
+  // Se luminosidade ≤ 128, fundo é escuro → texto claro
+  return luminance > 128 ? '#1a1a1a' : '#ffffff';
+}
+
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -1015,4 +1031,149 @@ function escapeAttr(str) {
     .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// ============ TEXTOS PADRAO ============
+
+function toggleStdTextsPanel() {
+  const visible = stdTextsPanel.style.display !== 'none';
+  stdTextsPanel.style.display = visible ? 'none' : '';
+  if (!visible) loadStdTexts();
+}
+
+async function loadStdTexts() {
+  try {
+    stdTextsData = await getStandardTexts();
+    renderStdTextsList();
+  } catch (err) {
+    console.error('[NotasPat] Erro ao carregar textos padrao:', err);
+  }
+}
+
+function renderStdTextsList() {
+  stdTextsList.innerHTML = '';
+  const query = (stdTextsSearch.value || '').toLowerCase();
+  const filtered = stdTextsData.filter(t =>
+    t.title.toLowerCase().includes(query) || t.text.toLowerCase().includes(query)
+  );
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'stdtexts-empty';
+    empty.textContent = stdTextsData.length === 0 ? 'Nenhum texto padrao cadastrado.' : 'Nenhum resultado.';
+    stdTextsList.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'stdtexts-item';
+
+    const info = document.createElement('div');
+    info.className = 'stdtexts-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'stdtexts-item-title';
+    title.textContent = t.title;
+    info.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'stdtexts-item-meta';
+    meta.textContent = `${t.text.length} caracteres`;
+    info.appendChild(meta);
+
+    item.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'stdtexts-item-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'stdtexts-item-btn';
+    editBtn.textContent = '\u270F\uFE0F';
+    editBtn.title = 'Editar';
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showStdTextForm(t);
+    });
+    actions.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'stdtexts-item-btn stdtexts-item-btn-danger';
+    delBtn.textContent = '\uD83D\uDDD1\uFE0F';
+    delBtn.title = 'Excluir';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleDeleteStdText(t);
+    });
+    actions.appendChild(delBtn);
+
+    item.appendChild(actions);
+    stdTextsList.appendChild(item);
+  });
+}
+
+function showStdTextForm(existing) {
+  stdTextsForm.style.display = '';
+  btnAddStdText.style.display = 'none';
+  if (existing && existing.id) {
+    editingStdTextId = existing.id;
+    stdTextTitle.value = existing.title;
+    stdTextContent.value = existing.text;
+  } else {
+    editingStdTextId = null;
+    stdTextTitle.value = '';
+    stdTextContent.value = '';
+  }
+  const len = stdTextContent.value.trim().length;
+  stdTextCharCount.textContent = `${len} caractere${len !== 1 ? 's' : ''}`;
+  stdTextCharCount.style.color = len < 30 ? '#dc3545' : '';
+  stdTextTitle.focus();
+}
+
+function hideStdTextForm() {
+  stdTextsForm.style.display = 'none';
+  btnAddStdText.style.display = '';
+  editingStdTextId = null;
+  stdTextTitle.value = '';
+  stdTextContent.value = '';
+  stdTextCharCount.textContent = '0 caracteres';
+}
+
+async function handleSaveStdText() {
+  const title = stdTextTitle.value.trim();
+  const text = stdTextContent.value.trim();
+
+  if (!title) { showToast('Titulo e obrigatorio', 'error'); return; }
+  if (text.length < 30) { showToast('Texto deve ter no minimo 30 caracteres', 'error'); return; }
+
+  try {
+    if (editingStdTextId) {
+      await updateStandardText(editingStdTextId, title, text);
+      showToast('Texto atualizado com sucesso', 'success');
+    } else {
+      await saveStandardText(title, text);
+      showToast('Texto criado com sucesso', 'success');
+    }
+    hideStdTextForm();
+    await loadStdTexts();
+  } catch (err) {
+    showToast('Erro: ' + err.message, 'error');
+  }
+}
+
+async function handleDeleteStdText(item) {
+  showConfirm(
+    `Excluir "${escapeHtml(item.title)}"?`,
+    'Esta acao nao pode ser desfeita.',
+    async () => {
+      try {
+        await deleteStandardText(item.id);
+        showToast('Texto excluido', 'success');
+        await loadStdTexts();
+      } catch (err) {
+        showToast('Erro ao excluir: ' + err.message, 'error');
+      }
+    },
+    '\uD83D\uDDD1\uFE0F'
+  );
 }

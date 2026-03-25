@@ -37,6 +37,23 @@ const fileInput = document.getElementById('fileInput');
 const themeToggle = document.getElementById('themeToggle');
 const toastContainer = document.getElementById('toastContainer');
 
+// Standard Texts elements
+const btnStdTexts = document.getElementById('btnStdTexts');
+const stdTextsPanel = document.getElementById('stdTextsPanel');
+const stdTextsSearch = document.getElementById('stdTextsSearch');
+const stdTextsList = document.getElementById('stdTextsList');
+const stdTextsForm = document.getElementById('stdTextsForm');
+const stdTextTitle = document.getElementById('stdTextTitle');
+const stdTextContent = document.getElementById('stdTextContent');
+const stdTextCharCount = document.getElementById('stdTextCharCount');
+const btnAddStdText = document.getElementById('btnAddStdText');
+const btnSaveStdText = document.getElementById('btnSaveStdText');
+const btnCancelStdText = document.getElementById('btnCancelStdText');
+const btnOpenStdTextsPage = document.getElementById('btnOpenStdTextsPage');
+
+let stdTextsData = [];
+let editingStdTextId = null;
+
 // Filtros
 const filterOrder = document.getElementById('filterOrder');
 const filterColor = document.getElementById('filterColor');
@@ -92,7 +109,7 @@ const importModalSub = document.getElementById('importModalSub');
 const importCancel = document.getElementById('importCancel');
 const importMerge = document.getElementById('importMerge');
 const importReplace = document.getElementById('importReplace');
-let pendingImportFile = null;
+let pendingImportText = null;
 
 // ============ UTILIDADES - DEBOUNCE ============
 
@@ -155,7 +172,16 @@ async function loadTheme() {
 
 function applyTheme() {
   document.body.classList.toggle('dark-theme', isDarkTheme);
-  themeToggle.textContent = isDarkTheme ? '☀️' : '🌙';
+  // Toggle SVG icons for theme button
+  const moonIcon = themeToggle.querySelector('.theme-icon-moon');
+  const sunIcon = themeToggle.querySelector('.theme-icon-sun');
+  if (moonIcon && sunIcon) {
+    moonIcon.style.display = isDarkTheme ? 'none' : 'block';
+    sunIcon.style.display = isDarkTheme ? 'block' : 'none';
+  } else {
+    // Fallback for emoji-based toggle
+    themeToggle.textContent = isDarkTheme ? '☀️' : '🌙';
+  }
   themeToggle.title = isDarkTheme ? 'Tema claro' : 'Tema escuro';
 }
 
@@ -229,8 +255,34 @@ function setupEventListeners() {
 
   // Exportar/Importar
   btnExport.addEventListener('click', exportNotesToFile);
-  btnImport.addEventListener('click', () => fileInput.click());
+  btnImport.addEventListener('click', () => {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('import/import.html')
+    });
+    window.close();
+  });
   fileInput.addEventListener('change', importNotesFromFile);
+
+  // Standard Texts events
+  btnStdTexts.addEventListener('click', toggleStdTextsPanel);
+  btnAddStdText.addEventListener('click', () => showStdTextForm());
+  btnSaveStdText.addEventListener('click', handleSaveStdText);
+  btnCancelStdText.addEventListener('click', hideStdTextForm);
+  btnOpenStdTextsPage.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('stdtexts/stdtexts.html') });
+  });
+
+  stdTextContent.addEventListener('input', () => {
+    const len = stdTextContent.value.trim().length;
+    stdTextCharCount.textContent = `${len} caractere${len !== 1 ? 's' : ''}`;
+    stdTextCharCount.style.color = len < 30 ? '#dc3545' : '';
+  });
+
+  let stdTextsSearchTimer = null;
+  stdTextsSearch.addEventListener('input', () => {
+    clearTimeout(stdTextsSearchTimer);
+    stdTextsSearchTimer = setTimeout(() => renderStdTextsList(), 300);
+  });
 
   // Modal de Edição
   modalClose.addEventListener('click', closeEditModal);
@@ -295,14 +347,14 @@ function setupEventListeners() {
   // Modal de Importação
   importCancel.addEventListener('click', closeImportModal);
   importMerge.addEventListener('click', async () => {
-    const file = pendingImportFile;
+    const text = pendingImportText;
     closeImportModal();
-    if (file) await doImport(file);
+    if (text) await doImport(text);
   });
   importReplace.addEventListener('click', async () => {
-    const file = pendingImportFile;
+    const text = pendingImportText;
     closeImportModal();
-    if (file) await doReplaceImport(file);
+    if (text) await doReplaceImport(text);
   });
   importModal.addEventListener('click', (e) => {
     if (e.target === importModal) closeImportModal();
@@ -365,7 +417,7 @@ function closeConfirmModal() {
 
 function closeImportModal() {
   importModal.classList.remove('active');
-  pendingImportFile = null;
+  pendingImportText = null;
 }
 
 // ============ RENDERIZAÇÃO ============
@@ -529,6 +581,7 @@ function createNoteItem(protocolo, nota) {
   const safeText = escapeHtml(nota.text);
   const safeColor = escapeAttr(nota.color);
   const safeDobra = escapeAttr(getDobraColor(nota.color));
+  const safeTextColor = escapeAttr(getTextColorForBackground(nota.color));
 
   return `
     <div class="note-item" draggable="true" data-protocolo="${safeProtocolo}">
@@ -544,7 +597,7 @@ function createNoteItem(protocolo, nota) {
         </div>
       </div>
       ${tags.length > 0 ? `<div class="tags-container">${tagsHtml}</div>` : ''}
-      <div class="note-text" style="--nota-bg: ${safeColor}; --nota-dobra: ${safeDobra}">
+      <div class="note-text" style="--nota-bg: ${safeColor}; --nota-dobra: ${safeDobra}; --nota-text: ${safeTextColor}">
         ${safeText}
       </div>
       <div class="note-date">Atualizado: ${date}</div>
@@ -874,23 +927,34 @@ async function importNotesFromFile(event) {
   const file = event.target.files[0];
   if (!file) return;
 
+  // Ler conteúdo IMEDIATAMENTE antes de limpar o input.
+  // No Firefox, limpar fileInput.value pode invalidar o objeto File,
+  // e o popup pode fechar ao abrir o diálogo de arquivos.
+  let fileText;
+  try {
+    fileText = await file.text();
+  } catch (error) {
+    console.error('[NotasPat] Erro ao ler arquivo:', error);
+    showToast('Erro ao ler arquivo.', 'error');
+    return;
+  }
+
   fileInput.value = '';
 
   const importCount = Object.keys(notasData).length;
 
   if (importCount > 0) {
-    pendingImportFile = file;
+    pendingImportText = fileText;
     importModalMessage.textContent = `Você tem ${importCount} nota(s) salva(s).`;
     importModalSub.textContent = 'Mesclar mantém suas notas atuais. Substituir apaga todas e importa apenas o arquivo.';
     importModal.classList.add('active');
   } else {
-    await doImport(file);
+    await doImport(fileText);
   }
 }
 
-async function doImport(file) {
+async function doImport(text) {
   try {
-    const text = await file.text();
     await importNotes(text);
     await loadNotes();
     showToast('Notas importadas com sucesso!', 'success');
@@ -901,9 +965,8 @@ async function doImport(file) {
   }
 }
 
-async function doReplaceImport(file) {
+async function doReplaceImport(text) {
   try {
-    const text = await file.text();
     await deleteAllNotes();
     await importNotes(text);
     await loadNotes();
@@ -935,6 +998,30 @@ function getDobraColor(color) {
   return '#f3e58d';
 }
 
+/**
+ * Calcula a cor do texto baseada na luminosidade do fundo
+ * Usa a fórmula de luminosidade relativa (perceptiva)
+ * @param {string} hexColor - Cor de fundo em formato hex (#RRGGBB)
+ * @returns {string} Cor do texto (#1a1a1a para fundos claros, #ffffff para fundos escuros)
+ */
+function getTextColorForBackground(hexColor) {
+  // Remover # se presente
+  const hex = hexColor.replace('#', '');
+
+  // Converter para RGB
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+
+  // Calcular luminosidade relativa (fórmula perceptiva)
+  // Valores: 0 (preto) a 255 (branco)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+
+  // Se luminosidade > 128, fundo é claro → texto escuro
+  // Se luminosidade ≤ 128, fundo é escuro → texto claro
+  return luminance > 128 ? '#1a1a1a' : '#ffffff';
+}
+
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -953,4 +1040,149 @@ function escapeAttr(str) {
     .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// ============ TEXTOS PADRAO ============
+
+function toggleStdTextsPanel() {
+  const visible = stdTextsPanel.style.display !== 'none';
+  stdTextsPanel.style.display = visible ? 'none' : '';
+  if (!visible) loadStdTexts();
+}
+
+async function loadStdTexts() {
+  try {
+    stdTextsData = await getStandardTexts();
+    renderStdTextsList();
+  } catch (err) {
+    console.error('[NotasPat] Erro ao carregar textos padrao:', err);
+  }
+}
+
+function renderStdTextsList() {
+  stdTextsList.innerHTML = '';
+  const query = (stdTextsSearch.value || '').toLowerCase();
+  const filtered = stdTextsData.filter(t =>
+    t.title.toLowerCase().includes(query) || t.text.toLowerCase().includes(query)
+  );
+
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'stdtexts-empty';
+    empty.textContent = stdTextsData.length === 0 ? 'Nenhum texto padrao cadastrado.' : 'Nenhum resultado.';
+    stdTextsList.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'stdtexts-item';
+
+    const info = document.createElement('div');
+    info.className = 'stdtexts-item-info';
+
+    const title = document.createElement('div');
+    title.className = 'stdtexts-item-title';
+    title.textContent = t.title;
+    info.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'stdtexts-item-meta';
+    meta.textContent = `${t.text.length} caracteres`;
+    info.appendChild(meta);
+
+    item.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'stdtexts-item-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'stdtexts-item-btn';
+    editBtn.textContent = '\u270F\uFE0F';
+    editBtn.title = 'Editar';
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showStdTextForm(t);
+    });
+    actions.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'stdtexts-item-btn stdtexts-item-btn-danger';
+    delBtn.textContent = '\uD83D\uDDD1\uFE0F';
+    delBtn.title = 'Excluir';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleDeleteStdText(t);
+    });
+    actions.appendChild(delBtn);
+
+    item.appendChild(actions);
+    stdTextsList.appendChild(item);
+  });
+}
+
+function showStdTextForm(existing) {
+  stdTextsForm.style.display = '';
+  btnAddStdText.style.display = 'none';
+  if (existing && existing.id) {
+    editingStdTextId = existing.id;
+    stdTextTitle.value = existing.title;
+    stdTextContent.value = existing.text;
+  } else {
+    editingStdTextId = null;
+    stdTextTitle.value = '';
+    stdTextContent.value = '';
+  }
+  const len = stdTextContent.value.trim().length;
+  stdTextCharCount.textContent = `${len} caractere${len !== 1 ? 's' : ''}`;
+  stdTextCharCount.style.color = len < 30 ? '#dc3545' : '';
+  stdTextTitle.focus();
+}
+
+function hideStdTextForm() {
+  stdTextsForm.style.display = 'none';
+  btnAddStdText.style.display = '';
+  editingStdTextId = null;
+  stdTextTitle.value = '';
+  stdTextContent.value = '';
+  stdTextCharCount.textContent = '0 caracteres';
+}
+
+async function handleSaveStdText() {
+  const title = stdTextTitle.value.trim();
+  const text = stdTextContent.value.trim();
+
+  if (!title) { showToast('Titulo e obrigatorio', 'error'); return; }
+  if (text.length < 30) { showToast('Texto deve ter no minimo 30 caracteres', 'error'); return; }
+
+  try {
+    if (editingStdTextId) {
+      await updateStandardText(editingStdTextId, title, text);
+      showToast('Texto atualizado com sucesso', 'success');
+    } else {
+      await saveStandardText(title, text);
+      showToast('Texto criado com sucesso', 'success');
+    }
+    hideStdTextForm();
+    await loadStdTexts();
+  } catch (err) {
+    showToast('Erro: ' + err.message, 'error');
+  }
+}
+
+async function handleDeleteStdText(item) {
+  showConfirm(
+    `Excluir "${escapeHtml(item.title)}"?`,
+    'Esta acao nao pode ser desfeita.',
+    async () => {
+      try {
+        await deleteStandardText(item.id);
+        showToast('Texto excluido', 'success');
+        await loadStdTexts();
+      } catch (err) {
+        showToast('Erro ao excluir: ' + err.message, 'error');
+      }
+    },
+    '\uD83D\uDDD1\uFE0F'
+  );
 }
