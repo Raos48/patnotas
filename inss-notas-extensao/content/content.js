@@ -49,6 +49,11 @@ let lastUrl = location.href;
 let transitionTimer = null;
 let isProcessingTransition = false;
 
+// Navigation handler tracking
+let navigationHandlersInstalled = false;
+let navPollInterval = null;
+let titleObserver = null;
+
 /**
  * Executa uma Promise com timeout de segurança
  * @param {Promise} promise - Promise a executar
@@ -883,6 +888,12 @@ function handlePageTransition() {
 }
 
 function setupNavigationHandlers() {
+  // Prevent duplicate installation
+  if (navigationHandlersInstalled) {
+    console.log('[NotasPat] Navigation handlers already installed, skipping');
+    return;
+  }
+
   // Browser back/forward buttons
   window.addEventListener('popstate', handlePageTransitionDebounced);
 
@@ -898,21 +909,25 @@ function setupNavigationHandlers() {
   // Use title element as canary (cheaper than observing entire document)
   const titleEl = document.querySelector('title');
   if (titleEl) {
-    new MutationObserver(() => {
+    titleObserver = new MutationObserver(() => {
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         handlePageTransitionDebounced();
       }
-    }).observe(titleEl, { subtree: true, characterData: true });
+    });
+    titleObserver.observe(titleEl, { subtree: true, characterData: true });
   }
 
   // Poll as fallback for SPA frameworks that don't trigger title mutations
-  setInterval(() => {
+  navPollInterval = setInterval(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       handlePageTransitionDebounced();
     }
   }, 2000); // Check every 2 seconds
+
+  navigationHandlersInstalled = true;
+  console.log('[NotasPat] Navigation handlers installed');
 }
 
 // ============ KEYBOARD SHORTCUTS ============
@@ -979,6 +994,7 @@ function tryProcessTables(maxAttempts = 20, delay = 500) {
       scanAllTables();
       startMutationObserver();
       setupKeyboardShortcuts();
+      setupNavigationHandlers();
       return true;
     }
 
@@ -988,6 +1004,7 @@ function tryProcessTables(maxAttempts = 20, delay = 500) {
       console.log('[NotasPat] Tabelas não encontradas, iniciando observer anyway');
       startMutationObserver();
       setupKeyboardShortcuts();
+      setupNavigationHandlers();
     }
     return false;
   }
