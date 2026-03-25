@@ -887,6 +887,13 @@ function startMutationObserver() {
   return mainObserver;
 }
 
+function handlePageTransitionDebounced() {
+  if (transitionTimer) {
+    clearTimeout(transitionTimer);
+  }
+  transitionTimer = setTimeout(handlePageTransition, 300);
+}
+
 // ============ KEYBOARD SHORTCUTS ============
 
 function setupKeyboardShortcuts() {
