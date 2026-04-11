@@ -16,5 +16,5 @@ def create_zip(source_dir, output_path):
         else:
             print(f'{output_path}: OK ({len(names)} arquivos)')
 
-create_zip('inss-notas-extensao-firefox', 'notaspat-firefox-v1.3.5.zip')
-create_zip('inss-notas-extensao', 'notaspat-chrome-v1.3.5.zip')
+create_zip('inss-notas-extensao-firefox', 'notaspat-firefox-v1.3.7.zip')
+create_zip('inss-notas-extensao', 'notaspat-chrome-v1.3.7.zip')

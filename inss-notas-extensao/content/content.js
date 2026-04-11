@@ -988,13 +988,12 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 let stdTextsCache = null;
 
 async function loadStdTextsCache() {
-  if (stdTextsCache === null) {
-    try {
-      stdTextsCache = await withTimeout(getStandardTexts(), 5000);
-    } catch (err) {
-      console.warn('[NotasPat] Erro ao carregar textos padrao:', err.message);
-      stdTextsCache = [];
-    }
+  // Sempre recarregar do storage para evitar cache preso em []
+  try {
+    stdTextsCache = await withTimeout(getStandardTexts(), 5000);
+  } catch (err) {
+    console.warn('[NotasPat] Erro ao carregar textos padrao:', err.message);
+    if (stdTextsCache === null) stdTextsCache = [];
   }
   return stdTextsCache;
 }
@@ -1070,9 +1069,22 @@ function startDraftEditorObserver() {
 }
 
 function injectStdTextButton(editorElement) {
-  const root = editorElement.closest('.DraftEditor-root') || editorElement.parentElement;
+  // Preferir ancorar o botao na barra de ferramentas (.draft-controls)
+  // para nao sobrepor o texto digitado. Fallback para .DraftEditor-root
+  // caso a toolbar nao exista em alguma variacao do DOM.
+  const textEditor = editorElement.closest('.text-editor');
+  const toolbar = textEditor?.querySelector(':scope > .draft-controls');
+  const root = toolbar
+    || editorElement.closest('.DraftEditor-root')
+    || editorElement.parentElement;
   if (!root) {
     console.warn('[NotasPat] injectStdTextButton: nao encontrou container root para o editor');
+    return;
+  }
+
+  // Evitar injetar duas vezes no mesmo container (ex.: re-scan)
+  if (root.querySelector(':scope > .inss-stdtext-btn')) {
+    console.log('[NotasPat] injectStdTextButton: botao ja existe no container, pulando');
     return;
   }
 
@@ -1086,9 +1098,13 @@ function injectStdTextButton(editorElement) {
   const btn = document.createElement('button');
   btn.className = 'inss-stdtext-btn';
   btn.title = 'Inserir texto padrao';
-  btn.textContent = '\u{1F4CB}';
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>Texto Padr\u00e3o';
+  // Salvar selecao no mousedown (antes de perder foco do editor)
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault(); // Impede que o botao roube foco do editor
+    saveEditorSelection(editorElement);
+  });
   btn.addEventListener('click', (e) => {
-    e.preventDefault();
     e.stopPropagation();
     toggleStdTextDropdown(btn, editorElement);
   });
@@ -1098,11 +1114,34 @@ function injectStdTextButton(editorElement) {
 }
 
 let activeDropdown = null;
+let savedEditorSelection = null;
+
+function saveEditorSelection(editorElement) {
+  const sel = window.getSelection();
+  if (sel.rangeCount > 0 && editorElement.contains(sel.anchorNode)) {
+    savedEditorSelection = sel.getRangeAt(0).cloneRange();
+  } else {
+    savedEditorSelection = null;
+  }
+}
+
+function restoreEditorSelection(editorElement) {
+  if (savedEditorSelection) {
+    editorElement.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedEditorSelection);
+    savedEditorSelection = null;
+    return true;
+  }
+  return false;
+}
 
 function toggleStdTextDropdown(btn, editorElement) {
   if (activeDropdown) {
     activeDropdown.remove();
     activeDropdown = null;
+    btn.parentElement.style.overflow = '';
     return;
   }
   showStdTextDropdown(btn, editorElement);
@@ -1123,6 +1162,20 @@ async function showStdTextDropdown(btn, editorElement) {
   const list = document.createElement('div');
   list.className = 'inss-stdtext-list';
   dropdown.appendChild(list);
+
+  // Footer com botao de gerenciamento
+  const footer = document.createElement('div');
+  footer.className = 'inss-stdtext-footer';
+  const manageBtn = document.createElement('button');
+  manageBtn.className = 'inss-stdtext-manage-btn';
+  manageBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Gerenciar Textos Padrão';
+  manageBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'openStdTextsPage' });
+    dropdown.remove();
+    activeDropdown = null;
+  });
+  footer.appendChild(manageBtn);
+  dropdown.appendChild(footer);
 
   function renderList(filter) {
     list.innerHTML = '';
@@ -1171,6 +1224,7 @@ async function showStdTextDropdown(btn, editorElement) {
         insertTextIntoDraftEditor(editorElement, t.text);
         dropdown.remove();
         activeDropdown = null;
+        btn.parentElement.style.overflow = '';
       });
       list.appendChild(item);
     });
@@ -1184,8 +1238,12 @@ async function showStdTextDropdown(btn, editorElement) {
 
   renderList('');
 
+  // Manter dentro do parent do botao (respeita focus trap de modais)
+  // position:fixed no CSS garante que escapa do overflow visualmente
+  // Dropdown dentro do parent (position:absolute no CSS o posiciona abaixo do botao)
   btn.parentElement.appendChild(dropdown);
   activeDropdown = dropdown;
+  btn.parentElement.style.overflow = 'visible';
 
   setTimeout(() => search.focus(), 50);
 
@@ -1193,6 +1251,7 @@ async function showStdTextDropdown(btn, editorElement) {
     if (!dropdown.contains(e.target) && e.target !== btn) {
       dropdown.remove();
       activeDropdown = null;
+      btn.parentElement.style.overflow = '';
       document.removeEventListener('click', onOutsideClick, true);
     }
   }
@@ -1202,6 +1261,7 @@ async function showStdTextDropdown(btn, editorElement) {
     if (e.key === 'Escape') {
       dropdown.remove();
       activeDropdown = null;
+      btn.parentElement.style.overflow = '';
       document.removeEventListener('keydown', onEscape, true);
     }
   }
@@ -1209,10 +1269,10 @@ async function showStdTextDropdown(btn, editorElement) {
 }
 
 function insertTextIntoDraftEditor(editorElement, text) {
-  editorElement.focus();
-
-  // Inserir na posicao do cursor sem selecionar tudo,
-  // preservando texto existente
+  // Restaurar a posicao do cursor salva antes do dropdown abrir
+  if (!restoreEditorSelection(editorElement)) {
+    editorElement.focus();
+  }
 
   // Usar paste event para injetar texto - Draft.js trata paste events
   // internamente sem conflitar com o React DOM reconciler
@@ -1230,7 +1290,6 @@ function insertTextIntoDraftEditor(editorElement, text) {
     console.log('[NotasPat] Texto padrao inserido via paste event');
   } catch (e) {
     console.error('[NotasPat] Erro ao inserir texto via paste:', e);
-    // Fallback: tentar via clipboard API real
     try {
       navigator.clipboard.writeText(text).then(() => {
         document.execCommand('paste');

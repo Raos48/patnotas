@@ -43,8 +43,8 @@
 .inss-dark-theme .inss-nota-color-popup,
 .inss-dark-theme .inss-toast-container,
 .inss-dark-theme .inss-confirm-overlay {
-  --inss-bg-primary: #1E222A;
-  --inss-bg-secondary: #181B22;
+  --inss-bg-primary: #2A2E38;
+  --inss-bg-secondary: #222630;
   --inss-bg-tertiary: #252930;
   --inss-text-primary: #E4E6EB;
   --inss-text-secondary: #A4AABC;
@@ -631,24 +631,33 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 28px;
-  height: 28px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fff;
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 2px solid #0B7D3B;
+  border-radius: 6px;
+  background: #0B7D3B;
+  color: #fff;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 5px;
   z-index: 1000;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+  opacity: 0.9;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(11, 125, 59, 0.3);
+  letter-spacing: 0.3px;
 }
 
 .inss-stdtext-btn:hover {
   opacity: 1;
-  border-color: #0B7D3B;
+  background: #0A6F35;
+  border-color: #0A6F35;
+  box-shadow: 0 3px 10px rgba(11, 125, 59, 0.4);
+  transform: translateY(-1px);
 }
 
 .inss-stdtext-dropdown {
@@ -661,7 +670,7 @@
   border: 1px solid #ccc;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  z-index: 1001;
+  z-index: 10001;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -734,6 +743,40 @@
   background: rgba(11, 125, 59, 0.08);
 }
 
+/* Footer do dropdown */
+.inss-stdtext-footer {
+  padding: 8px 10px;
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+
+.inss-stdtext-manage-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #0B7D3B;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inss-stdtext-manage-btn:hover {
+  background: #08592A;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(11, 125, 59, 0.25);
+}
+
+.inss-stdtext-manage-btn svg {
+  stroke: currentColor;
+}
+
 /* Confirm overlay */
 .inss-stdtext-confirm-overlay {
   position: fixed;
@@ -796,28 +839,35 @@
 
 /* Dark theme */
 .inss-dark-theme .inss-stdtext-btn {
-  background: #252930;
-  border-color: #2E3340;
-  color: #E4E6EB;
+  background: #2EAD5E;
+  border-color: #2EAD5E;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(46, 173, 94, 0.3);
+}
+
+.inss-dark-theme .inss-stdtext-btn:hover {
+  background: #26964F;
+  border-color: #26964F;
+  box-shadow: 0 3px 10px rgba(46, 173, 94, 0.4);
 }
 
 .inss-dark-theme .inss-stdtext-dropdown {
-  background: #1E222A;
-  border-color: #2E3340;
+  background: #2A2E38;
+  border-color: #3E4452;
 }
 
 .inss-dark-theme .inss-stdtext-search {
-  background: #181B22;
+  background: #222630;
   color: #E4E6EB;
-  border-bottom-color: #2E3340;
+  border-bottom-color: #3E4452;
 }
 
 .inss-dark-theme .inss-stdtext-item {
-  border-bottom-color: #2E3340;
+  border-bottom-color: #3E4452;
 }
 
 .inss-dark-theme .inss-stdtext-item:hover {
-  background: #152E1C;
+  background: #1F3A26;
 }
 
 .inss-dark-theme .inss-stdtext-item-title {
@@ -832,8 +882,21 @@
   color: #6B7280;
 }
 
+.inss-dark-theme .inss-stdtext-footer {
+  border-top-color: #3E4452;
+  background: #222630;
+}
+
+.inss-dark-theme .inss-stdtext-manage-btn {
+  background: #2EAD5E;
+}
+
+.inss-dark-theme .inss-stdtext-manage-btn:hover {
+  background: #0B7D3B;
+}
+
 .inss-dark-theme .inss-stdtext-confirm-box {
-  background: #1E222A;
+  background: #2A2E38;
 }
 
 .inss-dark-theme .inss-stdtext-confirm-msg {
@@ -841,7 +904,7 @@
 }
 
 .inss-dark-theme .inss-stdtext-confirm-cancel {
-  background: #2E3340;
+  background: #3E4452;
   color: #E4E6EB;
 }
 

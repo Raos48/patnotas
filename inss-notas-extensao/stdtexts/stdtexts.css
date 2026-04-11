@@ -325,6 +325,10 @@ body {
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
 }
 
 .text-card-actions {
@@ -361,6 +365,9 @@ body {
   color: var(--text-muted);
   line-height: 1.5;
   margin-bottom: 6px;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .text-card-meta {
