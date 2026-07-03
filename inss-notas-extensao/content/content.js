@@ -77,7 +77,9 @@ function getProtocoloFromRow(tr) {
 
   const protocolo = tds[2].textContent.trim();
 
-  if (/^\d{5,11}$/.test(protocolo)) {
+  // Aceita protocolos com 5 dígitos ou mais (sem teto). O protocolo da PAT
+  // cresceu para 12 dígitos; manter um teto fixo quebra a leitura dessas tarefas.
+  if (/^\d{5,}$/.test(protocolo)) {
     return protocolo;
   }
 

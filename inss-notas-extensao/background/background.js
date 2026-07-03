@@ -1,6 +1,6 @@
 /**
  * Background Service Worker - NotasPat
- * Manifest V3 - Versão 1.3.7
+ * Manifest V3 - Versão 1.3.9
  * Com suporte a notificações, lembretes e storage granular
  */
 
@@ -12,12 +12,15 @@ const OLD_STORAGE_KEY = 'notes'; // Para migração do formato antigo
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    // Inicializar storage
-    await chrome.storage.local.set({
-      templates: getDefaultTemplates(),
-      theme: 'light',
-      standard_texts: []
-    });
+    // Inicializar storage apenas para chaves ausentes (nunca sobrescrever dados existentes)
+    const existing = await chrome.storage.local.get(['templates', 'theme', 'standard_texts']);
+    const toSet = {};
+    if (!existing.templates) toSet.templates = getDefaultTemplates();
+    if (!existing.theme) toSet.theme = 'light';
+    if (!existing.standard_texts) toSet.standard_texts = [];
+    if (Object.keys(toSet).length > 0) {
+      await chrome.storage.local.set(toSet);
+    }
     console.log('[NotasPat] Storage inicializado');
   } else if (details.reason === 'update') {
     const previousVersion = details.previousVersion;
@@ -342,4 +345,4 @@ migrateToGranularStorage().then(() => {
   updateBadge();
 });
 
-console.log('[NotasPat] Background Service Worker v1.3.7 carregado');
+console.log('[NotasPat] Background Service Worker v1.3.9 carregado');
