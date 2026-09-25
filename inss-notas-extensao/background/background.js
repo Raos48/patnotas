@@ -1,6 +1,6 @@
 /**
  * Background Service Worker - NotasPat
- * Manifest V3 - Versão 1.3.9
+ * Manifest V3 - Versão 1.4.0
  * Com suporte a notificações, lembretes e storage granular
  */
 
@@ -467,4 +467,4 @@ migrateToGranularStorage()
     updateBadge();
   });
 
-console.log('[NotasPat] Background Service Worker v1.3.9 carregado');
+console.log('[NotasPat] Background Service Worker v1.4.0 carregado');
