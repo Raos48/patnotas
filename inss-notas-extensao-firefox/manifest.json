@@ -19,6 +19,7 @@
         "https://atendimento.inss.gov.br/*"
       ],
       "js": [
+        "lib/quota.js",
         "lib/storage.js",
         "content/content.js"
       ],
@@ -37,7 +38,7 @@
     }
   },
   "background": {
-    "scripts": ["background/background.js"]
+    "scripts": ["lib/quota.js", "background/background.js"]
   },
   "icons": {
     "16": "icons/icon16.png",

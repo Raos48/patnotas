@@ -579,6 +579,25 @@ function openEditor(container, protocolo, existingText = '', existingColor = DEF
   textarea.addEventListener('keypress', (e) => e.stopPropagation());
 }
 
+/**
+ * A nota caiu no fallback local: foi salva, so nao sincroniza.
+ * A UI precisa mostrar o sticky mesmo assim.
+ */
+function atualizarStickyAposFallback(container, protocolo, text, color, tags) {
+  // Le de volta para preservar createdAt/reminder reais da nota salva
+  getNote(protocolo).then(notaSalva => {
+    const nota = notaSalva || {
+      id: protocolo, text, color, tags: tags || [], reminder: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    notasCache[protocolo] = nota;
+    container.innerHTML = '';
+    const novo = createNoteSticky(protocolo, nota);
+    const sticky = novo.querySelector('.inss-nota-sticky');
+    if (sticky) container.appendChild(sticky);
+  });
+}
+
 function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
   console.log('[NotasPat] Salvando nota para protocolo:', protocolo);
   saveNote(protocolo, text, color, tags).then(nota => {
@@ -604,8 +623,16 @@ function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
       }
     });
   }).catch(err => {
-    console.error('Erro ao salvar nota:', err);
-    showToast('Erro ao salvar nota', 'error');
+    console.error('[NotasPat] Erro ao salvar nota:', err);
+    if (isQuotaError(err)) {
+      // A nota FOI salva localmente; o texto do erro explica isso ao usuario
+      showToast(err.message, 'warning');
+      if (typeof atualizarStickyAposFallback === 'function') {
+        atualizarStickyAposFallback(container, protocolo, text, color, tags);
+      }
+    } else {
+      showToast('Erro ao salvar nota', 'error');
+    }
   });
 }
 

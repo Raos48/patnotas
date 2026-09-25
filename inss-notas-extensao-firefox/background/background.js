@@ -4,6 +4,11 @@
  * Com suporte a notificações, lembretes e storage granular
  */
 
+// Modulo de quota do storage.sync (no Firefox e carregado via background.scripts)
+if (typeof importScripts === 'function') {
+  importScripts('/lib/quota.js');
+}
+
 const NOTE_PREFIX = 'note_';
 const ALARM_PREFIX = 'reminder_';
 const OLD_STORAGE_KEY = 'notes'; // Para migração do formato antigo
@@ -30,6 +35,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // Migrar formato antigo (notes: {}) para granular (note_<protocolo>)
   await migrateToGranularStorage();
+
+  // Migrar notas/textos de local para sync (sincronizacao entre computadores)
+  await migrateNotesToSync();
 
   // Reconfigurar todos os alarmes (apenas na instalação/atualização)
   await setupReminders();
@@ -86,18 +94,121 @@ async function migrateToGranularStorage() {
   }
 }
 
+/**
+ * Move notas e textos padrão de local para sync.
+ *
+ * ORDEM INVIOLAVEL: grava no sync -> confirma sucesso -> so entao remove
+ * do local. Nunca existe um instante em que o dado nao esta em lugar nenhum.
+ *
+ * Ordena por updatedAt desc: se nem tudo couber, o que sincroniza e o
+ * trabalho mais recente, nao uma fatia arbitraria.
+ */
+async function migrateNotesToSync() {
+  let migradas = 0;
+  let naoMigradas = 0;
+
+  try {
+    const local = await chrome.storage.local.get(null);
+    const sync = await chrome.storage.sync.get(null);
+    const chavesNota = Object.keys(local).filter(k => k.startsWith(NOTE_PREFIX));
+
+    chavesNota.sort((a, b) => {
+      const ta = new Date((local[a] || {}).updatedAt || 0).getTime();
+      const tb = new Date((local[b] || {}).updatedAt || 0).getTime();
+      return tb - ta; // mais recente primeiro
+    });
+
+    for (const key of chavesNota) {
+      const nota = local[key];
+
+      // Ja migrada e a copia local nao e mais nova: so limpa. Protege uma
+      // migracao interrompida no meio de regravar por cima de dado mais novo.
+      const noSync = sync[key];
+      if (noSync && new Date(noSync.updatedAt || 0) >= new Date(nota.updatedAt || 0)) {
+        await chrome.storage.local.remove(key);
+        continue;
+      }
+
+      const check = await checkQuotaBeforeWrite(key, nota);
+      if (!check.ok) {
+        await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+        naoMigradas++;
+        continue;
+      }
+
+      try {
+        await chrome.storage.sync.set({ [key]: nota });              // 1. grava
+        const confirmado = await chrome.storage.sync.get([key]);      // 2. confirma
+        if (!confirmado[key]) throw new Error('gravacao nao confirmada');
+        await chrome.storage.local.remove(key);                       // 3. so entao remove
+        sync[key] = nota; // mantem o espelho para as iteracoes seguintes
+        migradas++;
+      } catch (e) {
+        // Falhou a gravacao: a nota FICA no local, intacta
+        await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+        naoMigradas++;
+      }
+    }
+
+    // Textos padrao: chave unica, migra inteira ou nao migra
+    if (local.standard_texts && Array.isArray(local.standard_texts) && local.standard_texts.length > 0) {
+      const jaNoSync = await chrome.storage.sync.get(['standard_texts']);
+      if (!jaNoSync.standard_texts) {
+        const check = await checkQuotaBeforeWrite('standard_texts', local.standard_texts);
+        if (check.ok) {
+          try {
+            await chrome.storage.sync.set({ standard_texts: local.standard_texts });
+            await chrome.storage.sync.get(['standard_texts']);
+            await chrome.storage.local.remove('standard_texts');
+          } catch (e) {
+            naoMigradas++;
+          }
+        } else {
+          naoMigradas++;
+        }
+      }
+    }
+
+    console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente`);
+
+    if (naoMigradas > 0) {
+      chrome.notifications.create('notaspat_migracao', {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: 'NotasPat - Sincronizacao',
+        message: `${migradas} notas agora sincronizam entre computadores. ${naoMigradas} nao couberam e seguem salvas apenas neste computador - exclua notas antigas para sincroniza-las.`,
+        priority: 2
+      });
+    }
+  } catch (error) {
+    console.error('[NotasPat] Erro na migracao para sync:', error);
+  }
+
+  return { migradas, naoMigradas };
+}
+
 // ============ HELPERS ============
 
 /**
- * Coleta todas as notas do storage granular
+ * Coleta todas as notas do storage granular, dos DOIS namespaces.
+ * Em conflito (mesma chave em sync e local), vence a versao mais recente.
  */
 async function getAllNotesFromStorage() {
-  const result = await chrome.storage.local.get(null);
+  const [doSync, doLocal] = await Promise.all([
+    chrome.storage.sync.get(null),
+    chrome.storage.local.get(null)
+  ]);
   const notes = {};
-  for (const key of Object.keys(result)) {
+  for (const key of Object.keys(doLocal)) {
+    if (key.startsWith(NOTE_PREFIX)) notes[key.substring(NOTE_PREFIX.length)] = doLocal[key];
+  }
+  for (const key of Object.keys(doSync)) {
     if (key.startsWith(NOTE_PREFIX)) {
-      const protocolo = key.substring(NOTE_PREFIX.length);
-      notes[protocolo] = result[key];
+      const p = key.substring(NOTE_PREFIX.length);
+      const atual = notes[p];
+      if (!atual || new Date(doSync[key].updatedAt || 0) >= new Date(atual.updatedAt || 0)) {
+        notes[p] = doSync[key];
+      }
     }
   }
   return notes;
@@ -107,9 +218,8 @@ async function getAllNotesFromStorage() {
  * Lê uma nota individual do storage
  */
 async function getNoteFromStorage(protocolo) {
-  const key = NOTE_PREFIX + protocolo;
-  const result = await chrome.storage.local.get([key]);
-  return result[key] || null;
+  const notes = await getAllNotesFromStorage();
+  return notes[protocolo] || null;
 }
 
 // ============ LEMBRETES E ALARMES ============
@@ -161,7 +271,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
       // Limpar lembrete da nota (escrita individual)
       nota.reminder = null;
-      await chrome.storage.local.set({ [NOTE_PREFIX + protocolo]: nota });
+      try {
+        await chrome.storage.sync.set({ [NOTE_PREFIX + protocolo]: nota });
+        await chrome.storage.local.remove(NOTE_PREFIX + protocolo);
+      } catch (e) {
+        await chrome.storage.local.set({ [NOTE_PREFIX + protocolo]: nota });
+      }
     }
   } catch (error) {
     console.error('[NotasPat] Erro ao processar lembrete:', error);
@@ -202,7 +317,7 @@ async function updateBadge() {
 // ============ LISTENER DE MUDANÇAS NO STORAGE ============
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace !== 'local') return;
+  if (namespace !== 'sync' && namespace !== 'local') return;
 
   let notesChanged = false;
 
@@ -299,7 +414,12 @@ async function setReminderForNote(protocolo, reminderDate) {
     nota.reminder = reminderDate;
     nota.updatedAt = new Date().toISOString();
 
-    await chrome.storage.local.set({ [key]: nota });
+    try {
+      await chrome.storage.sync.set({ [key]: nota });
+      await chrome.storage.local.remove(key);
+    } catch (e) {
+      await chrome.storage.local.set({ [key]: nota });
+    }
 
     // Criar/remover alarme
     const alarmName = `${ALARM_PREFIX}${protocolo}`;
@@ -341,8 +461,10 @@ async function getStats() {
 // ============ INICIALIZAÇÃO ============
 
 // Migrar se necessário (safety check a cada startup do service worker)
-migrateToGranularStorage().then(() => {
-  updateBadge();
-});
+migrateToGranularStorage()
+  .then(() => migrateNotesToSync())
+  .then(() => {
+    updateBadge();
+  });
 
 console.log('[NotasPat] Background Service Worker v1.3.9 carregado');

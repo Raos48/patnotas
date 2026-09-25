@@ -197,8 +197,9 @@ async function handleSave() {
     }
     hideForm();
     await loadTexts();
-  } catch (err) {
-    showToast('Erro: ' + err.message, 'error');
+  } catch (error) {
+    console.error('[NotasPat] Erro ao salvar texto padrao:', error);
+    showToast(isQuotaError(error) ? error.message : 'Erro ao salvar texto padrao.', isQuotaError(error) ? 'warning' : 'error');
   }
 }
 
