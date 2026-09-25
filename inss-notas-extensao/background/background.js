@@ -4,6 +4,11 @@
  * Com suporte a notificações, lembretes e storage granular
  */
 
+// Modulo de quota do storage.sync (no Firefox e carregado via background.scripts)
+if (typeof importScripts === 'function') {
+  importScripts('/lib/quota.js');
+}
+
 const NOTE_PREFIX = 'note_';
 const ALARM_PREFIX = 'reminder_';
 const OLD_STORAGE_KEY = 'notes'; // Para migração do formato antigo

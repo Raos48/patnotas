@@ -18,6 +18,7 @@
         "https://atendimento.inss.gov.br/*"
       ],
       "js": [
+        "lib/quota.js",
         "lib/storage.js",
         "content/content.js"
       ],
