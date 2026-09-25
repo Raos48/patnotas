@@ -456,37 +456,42 @@ function updateExistingNote(protocolo, changes) {
 }
 
 /**
- * Remove uma nota pelo protocolo (remoção direta da chave)
+ * Remove chaves do sync E do local. Uma copia sobrevivente em qualquer um
+ * dos dois faria a nota excluida reaparecer na leitura seguinte (merge).
+ * @param {string|string[]} keys
+ * @returns {Promise<void>} rejeita se qualquer namespace falhar
+ */
+function removeFromBothAreas(keys) {
+  const remover = area => new Promise((resolve, reject) => {
+    chrome.storage[area].remove(keys, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+  return Promise.all([remover('sync'), remover('local')]).then(() => undefined);
+}
+
+/**
+ * Remove uma nota pelo protocolo (sync + local)
  * @param {string} protocolo - Número do protocolo
  * @returns {Promise<boolean>} True se removeu com sucesso
  */
 function deleteNote(protocolo) {
-  const key = NOTE_PREFIX + protocolo;
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.remove(key, () => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-      } else {
-        resolve(true);
-      }
-    });
-  });
+  return removeFromBothAreas(NOTE_PREFIX + protocolo).then(() => true);
 }
 
 /**
- * Remove TODAS as notas do storage (mantém outros dados como templates, theme, etc.)
+ * Remove TODAS as notas do storage, sync + local (mantém outros dados como
+ * templates, theme, etc.)
+ * A promocao em segundo plano disparada por getAllNotes nao traz as notas
+ * de volta: ela so promove o que continua em local (filterUnchangedLocalNotes).
  * @returns {Promise<void>}
  */
 function deleteAllNotes() {
-  return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
-      const keys = Object.keys(notes).map(p => NOTE_PREFIX + p);
-      if (keys.length === 0) { resolve(); return; }
-      chrome.storage.local.remove(keys, () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve();
-      });
-    }).catch(reject);
+  return getAllNotes().then(notes => {
+    const keys = Object.keys(notes).map(p => NOTE_PREFIX + p);
+    if (keys.length === 0) return undefined;
+    return removeFromBothAreas(keys);
   });
 }
 
