@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la *.zip)",
+      "Bash(find . -maxdepth 2 -name \"*.zip\")"
+    ]
+  }
+}
