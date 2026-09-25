@@ -626,21 +626,26 @@ function countNotes() {
 }
 
 /**
- * Verifica a saude do storage e retorna alertas se necessario
- * @returns {Promise<Object>} { ok: boolean, count: number, warning: string|null }
+ * Saude do storage medida em BYTES do sync, nao em contagem de notas.
+ * O gargalo agora e o teto de 100 KB, nao a quantidade.
+ * Avisa a 70% para dar folga antes do bloqueio rigido.
+ * @returns {Promise<{ok: boolean, percentUsed: number, warning: string|null}>}
+ *   percentUsed de 0 a 1; nunca rejeita (se a leitura falhar, reporta saudavel)
  */
 function checkStorageHealth() {
-  return new Promise((resolve, reject) => {
-    getAllNotes().then(notes => {
-      const count = Object.keys(notes).length;
-      let warning = null;
-
-      if (count >= 500) {
-        warning = `Voce possui ${count} notas salvas. Para manter o bom desempenho da extensao, considere excluir notas de tarefas ja concluidas.`;
+  return new Promise((resolve) => {
+    chrome.storage.sync.getBytesInUse(null, (bytesInUse) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: true, percentUsed: 0, warning: null });
+        return;
       }
-
-      resolve({ ok: count < 500, count, warning });
-    }).catch(reject);
+      const percentUsed = (bytesInUse || 0) / SYNC_QUOTA_BYTES_TOTAL;
+      let warning = null;
+      if (percentUsed >= 0.7) {
+        warning = `Voce esta usando ${Math.round(percentUsed * 100)}% do limite de sincronizacao. Considere excluir notas de tarefas ja concluidas para manter a sincronizacao entre computadores.`;
+      }
+      resolve({ ok: percentUsed < 0.7, percentUsed, warning });
+    });
   });
 }
 
@@ -705,6 +710,14 @@ function getNotesStats() {
 
 const STANDARD_TEXTS_KEY = 'standard_texts';
 
+// Mensagens do fallback local dos textos padrao (as padrao de createQuotaError falam de "nota")
+const STANDARD_TEXTS_QUOTA_MESSAGES = {
+  PER_ITEM: 'Os textos padrao ultrapassaram o limite de 8 KB para sincronizar e foram salvos apenas neste computador. Remova textos que nao usa para voltar a sincronizar.',
+  TOTAL: 'Limite de sincronizacao atingido - os textos padrao foram salvos apenas neste computador. Exclua notas de tarefas ja concluidas ou textos que nao usa para voltar a sincronizar.',
+  MAX_ITEMS: 'Limite de 512 itens sincronizados atingido - os textos padrao foram salvos apenas neste computador. Exclua notas de tarefas ja concluidas para voltar a sincronizar.',
+  RATE: 'Muitas gravacoes em sequencia - os textos padrao foram salvos neste computador e serao sincronizados na proxima alteracao.'
+};
+
 /**
  * Gera um ID unico para texto padrao
  */
@@ -713,26 +726,81 @@ function generateStdTextId() {
 }
 
 /**
- * Retorna todos os textos padrao
- * @returns {Promise<Array>} Array de textos (retorna [] se chave nao existir)
+ * Retorna todos os textos padrao (sync + local).
+ * Prefere o local quando e um array NAO vazio: ele so existe quando a ultima
+ * gravacao desta maquina nao coube no sync, e o sync ainda tem a versao
+ * anterior. Array vazio em local (criado na instalacao) nao esconde o sync.
+ * @returns {Promise<Array>} Array de textos (retorna [] se chave nao existir);
+ *   rejeita se a leitura de qualquer namespace falhar (gravar sobre uma base
+ *   incompleta apagaria textos)
  */
 function getStandardTexts() {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
+  const ler = area => new Promise((resolve, reject) => {
+    chrome.storage[area].get([STANDARD_TEXTS_KEY], (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
       }
-      resolve(result[STANDARD_TEXTS_KEY] || []);
+      resolve((result || {})[STANDARD_TEXTS_KEY]);
     });
   });
+
+  return Promise.all([ler('sync'), ler('local')]).then(([doSync, doLocal]) => {
+    if (Array.isArray(doLocal) && doLocal.length > 0) return doLocal;
+    return Array.isArray(doSync) ? doSync : [];
+  });
+}
+
+/**
+ * Grava o array de textos padrao no sync; se nao couber, grava em local.
+ * standard_texts e UMA chave com o array inteiro, entao esta sujeita ao
+ * teto de 8 KB como um todo: se nao couber, a chave inteira fica em local.
+ * @param {Array} texts
+ * @returns {Promise<Array>} texts gravados no sync; rejeita com erro
+ *   QUOTA_EXCEEDED depois de salvar em local
+ */
+function writeStandardTexts(texts) {
+  return checkQuotaBeforeWrite(STANDARD_TEXTS_KEY, texts)
+    // A checagem nao elimina a corrida com outra gravacao: o set ainda pode falhar
+    .then(check => (check.ok ? syncSetWithRateRetry({ [STANDARD_TEXTS_KEY]: texts }) : check.limitType))
+    .then(limitType => new Promise((resolve, reject) => {
+      if (limitType) {
+        chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: texts }, () => {
+          if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
+          console.warn('[NotasPat] Textos padrao salvos apenas neste computador (' + limitType + ')');
+          reject(createQuotaError(limitType, STANDARD_TEXTS_QUOTA_MESSAGES[limitType] || STANDARD_TEXTS_QUOTA_MESSAGES.TOTAL));
+        });
+        return;
+      }
+      // A copia local restante esconderia a versao nova do sync (getStandardTexts
+      // prefere local): se nao sair, rejeita em vez de dar como salvo
+      chrome.storage.local.remove(STANDARD_TEXTS_KEY, () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(texts);
+      });
+    }));
+}
+
+/**
+ * Repassa o erro, anexando ao erro de quota o resultado que ficou salvo em
+ * local (a UI trata como salvo e mostra o aviso).
+ * @param {string} campo - 'entry' ou 'texts'
+ * @param {*} valor
+ * @returns {function(*): never}
+ */
+function rethrowWithSavedResult(campo, valor) {
+  return err => {
+    if (isQuotaError(err)) err[campo] = valor;
+    throw err;
+  };
 }
 
 /**
  * Salva um novo texto padrao
  * @param {string} title - Titulo (obrigatorio, max 100 chars)
  * @param {string} text - Conteudo (min 30 chars)
- * @returns {Promise<Object>} Texto criado
+ * @returns {Promise<Object>} Texto criado; rejeita com erro QUOTA_EXCEEDED
+ *   (com .entry) se os textos ficaram salvos apenas neste computador
  */
 function saveStandardText(title, text) {
   const trimmedTitle = (title || '').trim();
@@ -741,24 +809,17 @@ function saveStandardText(title, text) {
   if (trimmedTitle.length > 100) return Promise.reject(new Error('Titulo deve ter no maximo 100 caracteres'));
   if (trimmedText.length < 30) return Promise.reject(new Error('Texto deve ter no minimo 30 caracteres'));
 
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
-      if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
-      const texts = result[STANDARD_TEXTS_KEY] || [];
-      const now = new Date().toISOString();
-      const entry = {
-        id: generateStdTextId(),
-        title: trimmedTitle,
-        text: trimmedText,
-        createdAt: now,
-        updatedAt: now
-      };
-      texts.push(entry);
-      chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: texts }, () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(entry);
-      });
-    });
+  return getStandardTexts().then(texts => {
+    const now = new Date().toISOString();
+    const entry = {
+      id: generateStdTextId(),
+      title: trimmedTitle,
+      text: trimmedText,
+      createdAt: now,
+      updatedAt: now
+    };
+    texts.push(entry);
+    return writeStandardTexts(texts).then(() => entry, rethrowWithSavedResult('entry', entry));
   });
 }
 
@@ -767,7 +828,8 @@ function saveStandardText(title, text) {
  * @param {string} id - ID do texto
  * @param {string} title - Novo titulo
  * @param {string} text - Novo conteudo
- * @returns {Promise<Object>} Texto atualizado
+ * @returns {Promise<Object>} Texto atualizado; rejeita com erro QUOTA_EXCEEDED
+ *   (com .entry) se os textos ficaram salvos apenas neste computador
  */
 function updateStandardText(id, title, text) {
   const trimmedTitle = (title || '').trim();
@@ -776,39 +838,27 @@ function updateStandardText(id, title, text) {
   if (trimmedTitle.length > 100) return Promise.reject(new Error('Titulo deve ter no maximo 100 caracteres'));
   if (trimmedText.length < 30) return Promise.reject(new Error('Texto deve ter no minimo 30 caracteres'));
 
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
-      if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
-      const texts = result[STANDARD_TEXTS_KEY] || [];
-      const index = texts.findIndex(t => t.id === id);
-      if (index === -1) { reject(new Error('Texto nao encontrado')); return; }
-      texts[index].title = trimmedTitle;
-      texts[index].text = trimmedText;
-      texts[index].updatedAt = new Date().toISOString();
-      chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: texts }, () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(texts[index]);
-      });
-    });
+  return getStandardTexts().then(texts => {
+    const index = texts.findIndex(t => t.id === id);
+    if (index === -1) throw new Error('Texto nao encontrado');
+    const entry = texts[index];
+    entry.title = trimmedTitle;
+    entry.text = trimmedText;
+    entry.updatedAt = new Date().toISOString();
+    return writeStandardTexts(texts).then(() => entry, rethrowWithSavedResult('entry', entry));
   });
 }
 
 /**
  * Remove um texto padrao
  * @param {string} id - ID do texto
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} rejeita com erro QUOTA_EXCEEDED (com .texts)
+ *   se os textos ficaram salvos apenas neste computador
  */
 function deleteStandardText(id) {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
-      if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
-      const texts = result[STANDARD_TEXTS_KEY] || [];
-      const filtered = texts.filter(t => t.id !== id);
-      chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: filtered }, () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(true);
-      });
-    });
+  return getStandardTexts().then(texts => {
+    const filtered = texts.filter(t => t.id !== id);
+    return writeStandardTexts(filtered).then(() => true, rethrowWithSavedResult('texts', filtered));
   });
 }
 
@@ -834,44 +884,35 @@ function exportStandardTexts() {
  * Importa textos padrao de JSON string
  * @param {string} jsonString - JSON exportado
  * @param {boolean} replace - true = substituir, false = mesclar
- * @returns {Promise<Array>} Textos resultantes
+ * @returns {Promise<Array>} Textos resultantes; rejeita com erro
+ *   QUOTA_EXCEEDED (com .texts) se ficaram salvos apenas neste computador
  */
 function importStandardTexts(jsonString, replace) {
-  return new Promise((resolve, reject) => {
-    try {
-      const importData = JSON.parse(jsonString);
-      if (importData.type !== 'standard_texts') {
-        reject(new Error('Arquivo nao e um export de textos padrao'));
-        return;
-      }
-      if (!Array.isArray(importData.texts)) {
-        reject(new Error('Formato de arquivo invalido'));
-        return;
-      }
-
-      if (replace) {
-        chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: importData.texts }, () => {
-          if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-          else resolve(importData.texts);
-        });
-      } else {
-        chrome.storage.local.get([STANDARD_TEXTS_KEY], (result) => {
-          if (chrome.runtime.lastError) { reject(chrome.runtime.lastError); return; }
-          const existing = result[STANDARD_TEXTS_KEY] || [];
-          const now = Date.now();
-          importData.texts.forEach((entry, i) => {
-            entry.id = 'st_' + (now + i) + '_' + Math.random().toString(36).substring(2, 7);
-          });
-          const merged = existing.concat(importData.texts);
-          chrome.storage.local.set({ [STANDARD_TEXTS_KEY]: merged }, () => {
-            if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-            else resolve(merged);
-          });
-        });
-      }
-    } catch (e) {
-      reject(new Error('Erro ao ler arquivo JSON: ' + e.message));
+  let importData;
+  try {
+    importData = JSON.parse(jsonString);
+    if (importData.type !== 'standard_texts') {
+      return Promise.reject(new Error('Arquivo nao e um export de textos padrao'));
     }
+    if (!Array.isArray(importData.texts)) {
+      return Promise.reject(new Error('Formato de arquivo invalido'));
+    }
+  } catch (e) {
+    return Promise.reject(new Error('Erro ao ler arquivo JSON: ' + e.message));
+  }
+
+  if (replace) {
+    const texts = importData.texts;
+    return writeStandardTexts(texts).then(() => texts, rethrowWithSavedResult('texts', texts));
+  }
+
+  return getStandardTexts().then(existing => {
+    const now = Date.now();
+    importData.texts.forEach((entry, i) => {
+      entry.id = 'st_' + (now + i) + '_' + Math.random().toString(36).substring(2, 7);
+    });
+    const merged = existing.concat(importData.texts);
+    return writeStandardTexts(merged).then(() => merged, rethrowWithSavedResult('texts', merged));
   });
 }
 
