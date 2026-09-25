@@ -25,13 +25,24 @@ const NotasPatTest = {
     console.log('[NotasPat][TESTE] Storage limpo (sync + local)');
   },
 
-  /** Enche o sync ate aproximadamente `bytes` para testar estouro de quota */
+  /**
+   * Enche o sync ate aproximadamente `bytes` para testar estouro de quota.
+   * Se o ultimo pedaco de 7 KB nao couber (alvo perto do limite, ex.: 100000),
+   * completa o espaco que resta: o sync fica cheio de verdade.
+   */
   async fillSyncTo(bytes) {
+    const gravar = obj => new Promise(r => chrome.storage.sync.set(obj, () => r(!chrome.runtime.lastError)));
     const filler = 'x'.repeat(7000);
     let escrito = 0, i = 0;
     while (escrito < bytes) {
       const chave = `__fill_${i++}`;
-      await new Promise(r => chrome.storage.sync.set({ [chave]: filler }, r));
+      if (!(await gravar({ [chave]: filler }))) {
+        const quota = chrome.storage.sync.QUOTA_BYTES || 102400;
+        const emUso = await new Promise(r => chrome.storage.sync.getBytesInUse(null, r));
+        const resto = quota - emUso - chave.length - 2; // 2 = aspas do JSON da string
+        if (resto > 0) await gravar({ [chave]: 'x'.repeat(resto) });
+        break;
+      }
       escrito += filler.length + chave.length;
     }
     const uso = await new Promise(r => chrome.storage.sync.getBytesInUse(null, r));
