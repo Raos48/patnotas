@@ -784,8 +784,18 @@ async function saveEditedNote() {
     showToast('Nota salva com sucesso!', 'success');
     await verifyStorageHealth();
   } catch (error) {
-    console.error('Erro ao salvar nota:', error);
-    showToast('Erro ao salvar nota. Tente novamente.', 'error');
+    console.error('[NotasPat] Erro ao salvar nota:', error);
+    if (isQuotaError(error)) {
+      notasData[currentEditProtocolo] = Object.assign({}, notasData[currentEditProtocolo], {
+        text, color: selectedColor, tags: selectedTags, updatedAt: new Date().toISOString()
+      });
+      renderNotes();
+      updateStatistics();
+      closeEditModal();
+      showToast(error.message, 'warning');
+    } else {
+      showToast('Erro ao salvar nota. Tente novamente.', 'error');
+    }
   }
 }
 
@@ -1174,8 +1184,9 @@ async function handleSaveStdText() {
     }
     hideStdTextForm();
     await loadStdTexts();
-  } catch (err) {
-    showToast('Erro: ' + err.message, 'error');
+  } catch (error) {
+    console.error('[NotasPat] Erro ao salvar texto padrao:', error);
+    showToast(isQuotaError(error) ? error.message : 'Erro ao salvar texto padrao.', isQuotaError(error) ? 'warning' : 'error');
   }
 }
 
