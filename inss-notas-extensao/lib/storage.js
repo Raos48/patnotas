@@ -9,54 +9,207 @@
  *
  * Fallback: a nota que nao cabe no sync e gravada em local sob a mesma chave,
  * marcada com _syncFallback: true - a nota digitada nunca e descartada.
+ * Leitura: consulta os dois namespaces e, para a mesma chave, vence o
+ * updatedAt mais recente; notas em fallback sobem ao sync quando couberem.
  * Depende de lib/quota.js (carregado antes deste arquivo).
  */
 
 const NOTE_PREFIX = 'note_';
 
+// ============ LEITURA DOS DOIS NAMESPACES ============
+
 /**
- * Retorna todas as notas do storage (filtra por prefixo note_)
- * @returns {Promise<Object>} Objeto com todas as notas { protocolo: nota }
+ * Resolve a mesma chave presente nos dois namespaces.
+ * Regra: vence updatedAt mais recente (empate: a do sync). "Sync sempre vence"
+ * descartaria uma edicao local mais nova que o usuario acabou de fazer.
+ * @param {Object} syncNotes - { protocolo: nota } lidas do sync
+ * @param {Object} localNotes - { protocolo: nota } lidas do local
+ * @returns {{merged: Object, obsoleteLocalKeys: string[], promotableKeys: string[]}}
+ *   obsoleteLocalKeys: protocolos cuja copia local perdeu para o sync;
+ *   promotableKeys: protocolos cuja versao valida esta so em local
  */
-function getAllNotes() {
+function mergeNotesByRecency(syncNotes, localNotes) {
+  const merged = {};
+  const obsoleteLocalKeys = [];
+  const promotableKeys = [];
+  const tempo = nota => new Date((nota && nota.updatedAt) || 0).getTime() || 0;
+
+  Object.keys(syncNotes).forEach(p => { merged[p] = syncNotes[p]; });
+
+  Object.keys(localNotes).forEach(p => {
+    const local = localNotes[p];
+    const sync = syncNotes[p];
+
+    if (!sync) {
+      merged[p] = local;
+      promotableKeys.push(p); // so existe em local: tentar promover ao sync
+      return;
+    }
+
+    if (tempo(local) > tempo(sync)) {
+      merged[p] = local;
+      promotableKeys.push(p);
+    } else {
+      obsoleteLocalKeys.push(p); // sync venceu: copia local nao serve mais
+    }
+  });
+
+  return { merged, obsoleteLocalKeys, promotableKeys };
+}
+
+/**
+ * Le as notas de um namespace, sem o prefixo note_ nas chaves.
+ * @param {'sync'|'local'} area
+ * @param {string[]|null} keys - chaves note_<protocolo>, ou null para todas
+ * @returns {Promise<Object>} { protocolo: nota }; rejeita se a leitura falhar
+ */
+function readNotesFromArea(area, keys) {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get(null, (result) => {
+    chrome.storage[area].get(keys, (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
       }
       const notes = {};
-      for (const key of Object.keys(result)) {
+      Object.keys(result || {}).forEach(key => {
         if (key.startsWith(NOTE_PREFIX)) {
-          const protocolo = key.substring(NOTE_PREFIX.length);
-          notes[protocolo] = result[key];
+          notes[key.substring(NOTE_PREFIX.length)] = result[key];
         }
-      }
+      });
       resolve(notes);
     });
   });
 }
 
+// Chaves com promocao ao sync em andamento neste contexto: leituras seguidas
+// (ex.: popup lista as notas e logo checa a saude) nao gravam a mesma nota duas vezes
+const promotionsInFlight = new Set();
+
 /**
- * Retorna nota de um protocolo específico (leitura individual)
- * @param {string} protocolo - Número do protocolo
- * @returns {Promise<Object|null>} Nota encontrada ou null
+ * Das notas planejadas para promocao, mantem so as que continuam em local
+ * na mesma versao. Se o usuario excluiu ou editou a nota depois da leitura,
+ * promover a copia lida a faria reaparecer (ou voltar atras) no sync.
+ * @param {Object} entries - { chave: nota }
+ * @returns {Promise<Object>} { chave: nota } ainda validas
  */
-function getNote(protocolo) {
-  const key = NOTE_PREFIX + protocolo;
+function filterUnchangedLocalNotes(entries) {
+  const chaves = Object.keys(entries);
+  if (chaves.length === 0) return Promise.resolve({});
+
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get([key], (result) => {
+    chrome.storage.local.get(chaves, (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
-      } else {
-        resolve(result[key] || null);
+        return;
       }
+      const validas = {};
+      chaves.forEach(chave => {
+        const atual = (result || {})[chave];
+        if (atual && atual.updatedAt === entries[chave].updatedAt) validas[chave] = entries[chave];
+      });
+      resolve(validas);
     });
   });
 }
 
 /**
- * Retorna notas para uma lista de protocolos (batch-get eficiente)
+ * Em segundo plano: limpa copias locais obsoletas e promove ao sync as notas
+ * que ficaram so em local. Assim notas em fallback se auto-recuperam quando
+ * o usuario libera espaco, sem acao manual.
+ * Roda a cada leitura (inclusive a cada renderizacao da pagina), entao nao
+ * grava nada quando nao ha o que fazer: a nota que continua sem caber fica
+ * em local como esta. Nunca rejeita; falhas viram console.warn.
+ * @param {Object} merged - { protocolo: nota } resultado do merge
+ * @param {string[]} obsoleteLocalKeys
+ * @param {string[]} promotableKeys
+ */
+function reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys) {
+  const avisar = err => console.warn('[NotasPat] Falha ao reconciliar notas entre sync e local:', (err && err.message) || err);
+
+  if (obsoleteLocalKeys.length > 0) {
+    new Promise((resolve, reject) => {
+      chrome.storage.local.remove(obsoleteLocalKeys.map(p => NOTE_PREFIX + p), () => {
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve();
+      });
+    }).catch(avisar);
+  }
+
+  // Copias sem _syncFallback feitas agora: o chamador pode alterar merged depois
+  const entries = {};
+  promotableKeys.forEach(p => {
+    const chave = NOTE_PREFIX + p;
+    if (!merged[p] || promotionsInFlight.has(chave)) return;
+    entries[chave] = withoutSyncFallback(merged[p]);
+  });
+  const chaves = Object.keys(entries);
+  if (chaves.length === 0) return;
+  chaves.forEach(chave => promotionsInFlight.add(chave));
+
+  // Um unico sync.set com as que cabem (mais recentes primeiro); writeSyncBatch
+  // so remove de local depois de confirmar a gravacao. As que nao cabem ficam como estao.
+  planSyncBatch(entries)
+    .then(({ fits }) => filterUnchangedLocalNotes(fits))
+    .then(promover => writeSyncBatch(promover).then(limitType => {
+      const total = Object.keys(promover).length;
+      if (!limitType && total > 0) console.log('[NotasPat] ' + total + ' nota(s) salva(s) so neste computador subiram para o sync');
+    }))
+    .catch(avisar)
+    .then(() => chaves.forEach(chave => promotionsInFlight.delete(chave)));
+}
+
+/**
+ * Le notas do sync e do local, resolve conflitos e dispara a reconciliacao
+ * em segundo plano (sem esperar por ela).
+ * Se um namespace falhar na leitura, segue com o outro (sem reconciliar,
+ * porque sem os dois lados o merge nao e confiavel para gravar); se os dois
+ * falharem, rejeita.
+ * @param {string[]|null} keys - chaves note_<protocolo>, ou null para todas
+ * @returns {Promise<Object>} { protocolo: nota }
+ */
+function readNotesFromBothAreas(keys) {
+  const ler = area => readNotesFromArea(area, keys).then(
+    notes => ({ notes, erro: null }),
+    erro => {
+      console.warn('[NotasPat] Falha ao ler notas do ' + area + ':', (erro && erro.message) || erro);
+      return { notes: {}, erro: erro || new Error('Falha ao ler notas do ' + area) };
+    }
+  );
+
+  return Promise.all([ler('sync'), ler('local')]).then(([doSync, doLocal]) => {
+    if (doSync.erro && doLocal.erro) throw doLocal.erro;
+
+    const { merged, obsoleteLocalKeys, promotableKeys } = mergeNotesByRecency(doSync.notes, doLocal.notes);
+    if (!doSync.erro && !doLocal.erro) {
+      try {
+        reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys);
+      } catch (e) {
+        console.warn('[NotasPat] Falha ao reconciliar notas entre sync e local:', e && e.message);
+      }
+    }
+    return merged;
+  });
+}
+
+/**
+ * Retorna todas as notas (sync + local; filtra por prefixo note_)
+ * @returns {Promise<Object>} Objeto com todas as notas { protocolo: nota }
+ */
+function getAllNotes() {
+  return readNotesFromBothAreas(null);
+}
+
+/**
+ * Retorna nota de um protocolo específico (sync + local, a mais recente)
+ * @param {string} protocolo - Número do protocolo
+ * @returns {Promise<Object|null>} Nota encontrada ou null
+ */
+function getNote(protocolo) {
+  return getNotesForProtocolos([protocolo]).then(notes => notes[protocolo] || null);
+}
+
+/**
+ * Retorna notas para uma lista de protocolos (batch-get em sync + local)
  * @param {string[]} protocolos - Array de números de protocolo
  * @returns {Promise<Object>} Objeto com notas encontradas { protocolo: nota }
  */
@@ -64,22 +217,7 @@ function getNotesForProtocolos(protocolos) {
   if (!protocolos || protocolos.length === 0) {
     return Promise.resolve({});
   }
-  const keys = protocolos.map(p => NOTE_PREFIX + p);
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get(keys, (result) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-      const notes = {};
-      for (const key of Object.keys(result)) {
-        if (key.startsWith(NOTE_PREFIX)) {
-          notes[key.substring(NOTE_PREFIX.length)] = result[key];
-        }
-      }
-      resolve(notes);
-    });
-  });
+  return readNotesFromBothAreas(protocolos.map(p => NOTE_PREFIX + p));
 }
 
 // ============ ESCRITA NO SYNC COM FALLBACK ============
@@ -249,8 +387,9 @@ function writeNoteWithFallback(key, note) {
 
 /**
  * Le a nota existente dos DOIS namespaces e devolve a mais recente por
- * updatedAt (empate: a do sync). Nao usa getNote() porque nesta etapa
- * getNote ainda le so um namespace.
+ * updatedAt (empate: a do sync), como getNote(). Nao usa getNote() porque
+ * ela dispara a reconciliacao em segundo plano, que poderia promover ao sync
+ * a versao antiga desta mesma nota em paralelo com a gravacao que vem a seguir.
  * @param {string} key - note_<protocolo>
  * @returns {Promise<Object|null>}
  */
