@@ -7,7 +7,7 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 33/33.
+ * Esperado: 36/36.
  *   - Se D1/D2/D3/D4/D5/D5b/D6/D6b/D7 falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
@@ -447,6 +447,43 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco E: 3/3');
 
   // =========================================================
+  // BLOCO G — lembrete sobrevive a migracao local -> sync (CRITICO)
+  // Bug de revisao: o listener de storage.onChanged tratava a remocao local
+  // (que a migracao faz DEPOIS de confirmar a gravacao no sync - grava,
+  // confirma, so entao remove) como uma EXCLUSAO REAL, e limpava o alarme
+  // que a propria gravacao no sync tinha acabado de criar. O lembrete
+  // sumia toda vez que uma nota com lembrete migrava - silenciosamente.
+  // =========================================================
+  console.log('[NotasPat][TESTE] --- Bloco G: lembrete sobrevive a migracao ---');
+  await NotasPatTest.reset();
+  await new Promise(r => chrome.storage.local.set({
+    note_777: {
+      id: '777', text: 'com lembrete', color: '#fff8c6', tags: [],
+      reminder: new Date(Date.now() + 86400000).toISOString(), // 24h a frente
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2030-01-01T00:00:00.000Z'
+    }
+  }, r));
+  await new Promise(r => setTimeout(r, 300)); // listener de storage.onChanged e assincrono
+
+  const alarmesAntes = await chrome.alarms.getAll();
+  NotasPatTest.assert('G0 alarme existe ANTES da migracao (confirma que o cenario e real)',
+    alarmesAntes.some(a => a.name === 'reminder_777'));
+
+  await migrateNotesToSync();
+  await new Promise(r => setTimeout(r, 800));
+
+  const gSync = await new Promise(r => chrome.storage.sync.get(['note_777'], r));
+  const gLocal = await new Promise(r => chrome.storage.local.get(['note_777'], r));
+  NotasPatTest.assert('G1a a nota de fato migrou (esta no sync, nao mais em local)',
+    !!gSync.note_777 && !gLocal.note_777);
+
+  const alarmesDepois = await chrome.alarms.getAll();
+  NotasPatTest.assert('G1 alarme continua existindo DEPOIS da migracao (nao foi limpo por engano)',
+    alarmesDepois.some(a => a.name === 'reminder_777'));
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco G: 3/3');
+
+  // =========================================================
   // BLOCO F — lote unico de gravacoes (nao 1 write por nota)
   // Cada chrome.storage.sync.set() conta 1 write contra o limite de
   // 120/minuto. onInstalled e o cold-start podem disparar quase juntos
@@ -490,6 +527,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 33/33) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 36/36) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
