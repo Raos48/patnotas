@@ -84,26 +84,41 @@ function readNotesFromArea(area, keys) {
 // Chaves com promocao ao sync em andamento neste contexto: leituras seguidas
 // (ex.: popup lista as notas e logo checa a saude) nao gravam a mesma nota duas vezes
 const promotionsInFlight = new Set();
-// Chaves cuja promocao em andamento deve ser abortada antes de gravar no
-// sync: o usuario excluiu OU editou a nota depois que a promocao ja tinha
-// lido "local" e decidido promover, mas antes do sync.set concluir. Sem
-// isso a nota excluida podia ressuscitar, ou uma edicao podia ser revertida
-// por uma versao mais velha ainda em voo (ver reconcileNamespaces).
-// So a promocao em segundo plano filtra por esta marca; salvar uma nota
-// nova/editada NUNCA filtra (senao excluir e recriar no mesmo protocolo
-// faria a nota nova sumir sem erro - ver writeSyncBatch).
-const promotionsCancelled = new Set();
+
+// Protege promocoes em voo contra excluir/editar durante a corrida, SEM
+// derrubar uma promocao que comecou DEPOIS que a escrita ja tinha terminado
+// (essa e legitima: a nota ficou em fallback e agora cabe - precisa subir).
+// Por chave, guarda Infinity enquanto uma escrita esta em andamento, ou o
+// "epoch" em que a ultima escrita terminou. Uma promocao so e cancelada se
+// comecou a ler ANTES desse valor (menor epoch = leitura mais antiga).
+let promotionEpoch = 0;
+const promotionsCancelled = new Map();
 
 /**
- * Marca uma chave para que a proxima promocao em voo a ignore, e agenda a
- * limpeza sozinha da marca (TTL) para o caso de nao existir promocao
- * nenhuma no momento - senao a marca ficaria presa para sempre.
+ * Marca uma chave como "escrita em andamento": qualquer promocao cuja
+ * leitura comecou antes disso sera cancelada quando tentar gravar.
  * @param {string|string[]} keys - chave(s) note_<protocolo>
  */
 function cancelPendingPromotion(keys) {
   const lista = Array.isArray(keys) ? keys : [keys];
-  lista.forEach(c => promotionsCancelled.add(c));
-  setTimeout(() => lista.forEach(c => promotionsCancelled.delete(c)), 5000);
+  lista.forEach(c => promotionsCancelled.set(c, Infinity));
+}
+
+/**
+ * Marca uma chave como "escrita concluida no epoch atual" e agenda a
+ * limpeza sozinha (TTL) para o caso de nao existir promocao alguma em voo
+ * - senao a marca ficaria presa para sempre. Chamar sempre no finally da
+ * escrita (mesmo se ela rejeitar), para nunca deixar a chave travada em
+ * Infinity.
+ * @param {string|string[]} keys - chave(s) note_<protocolo>
+ */
+function settlePendingPromotion(keys) {
+  const lista = Array.isArray(keys) ? keys : [keys];
+  const epoch = ++promotionEpoch;
+  lista.forEach(c => promotionsCancelled.set(c, epoch));
+  setTimeout(() => {
+    lista.forEach(c => { if (promotionsCancelled.get(c) === epoch) promotionsCancelled.delete(c); });
+  }, 30000);
 }
 
 /**
@@ -143,8 +158,11 @@ function filterUnchangedLocalNotes(entries) {
  * @param {Object} merged - { protocolo: nota } resultado do merge
  * @param {string[]} obsoleteLocalKeys
  * @param {string[]} promotableKeys
+ * @param {number} epochDaLeitura - promotionEpoch capturado ANTES da leitura
+ *   que gerou promotableKeys; usado para distinguir escrita concorrente
+ *   (cancela) de escrita ja concluida antes da leitura (nao cancela)
  */
-function reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys) {
+function reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys, epochDaLeitura) {
   const avisar = err => console.warn('[NotasPat] Falha ao reconciliar notas entre sync e local:', (err && err.message) || err);
 
   if (obsoleteLocalKeys.length > 0) {
@@ -174,14 +192,16 @@ function reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys) {
     .then(promover => {
       // Reconfere promotionsCancelled IMEDIATAMENTE ANTES do sync.set (nao so
       // no inicio desta funcao): entre a leitura que decidiu promover e aqui
-      // ha varios awaits (planSyncBatch, filterUnchangedLocalNotes) onde o
-      // usuario pode ter excluido a nota. So esta chamada (promocao em
-      // segundo plano) filtra; salvar uma nota nova/editada nunca filtra.
+      // ha varios awaits (planSyncBatch, filterUnchangedLocalNotes) onde uma
+      // escrita pode ter comecado. So cancela se essa escrita comecou DEPOIS
+      // da nossa leitura (epoch maior) ou ainda esta em andamento (Infinity):
+      // uma escrita concluida ANTES da leitura ja e o dado correto sendo
+      // promovido, e nao deve ser cancelada (ex.: nota que ficou em fallback
+      // e agora, liberado espaco, esta subindo para o sync legitimamente).
+      // NAO consome a marca: outra promocao concorrente pode precisar dela.
       Object.keys(promover).forEach(c => {
-        if (promotionsCancelled.has(c)) {
-          delete promover[c];
-          promotionsCancelled.delete(c);
-        }
+        const marca = promotionsCancelled.get(c);
+        if (marca !== undefined && marca > epochDaLeitura) delete promover[c];
       });
       return promover;
     })
@@ -203,6 +223,12 @@ function reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys) {
  * @returns {Promise<Object>} { protocolo: nota }
  */
 function readNotesFromBothAreas(keys) {
+  // Capturado ANTES de qualquer leitura: uma escrita (delete/save) que
+  // termine (settlePendingPromotion) depois deste ponto e depois desta
+  // leitura ter decidido promover e que precisa cancelar a promocao; uma
+  // que ja tinha terminado antes disso e passado (a promocao le o dado
+  // pos-escrita, entao esta correta e nao deve ser cancelada).
+  const epochDaLeitura = promotionEpoch;
   const ler = area => readNotesFromArea(area, keys).then(
     notes => ({ notes, erro: null }),
     erro => {
@@ -217,7 +243,7 @@ function readNotesFromBothAreas(keys) {
     const { merged, obsoleteLocalKeys, promotableKeys } = mergeNotesByRecency(doSync.notes, doLocal.notes);
     if (!doSync.erro && !doLocal.erro) {
       try {
-        reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys);
+        reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys, epochDaLeitura);
       } catch (e) {
         console.warn('[NotasPat] Falha ao reconciliar notas entre sync e local:', e && e.message);
       }
@@ -419,7 +445,9 @@ function writeNoteWithFallback(key, note) {
   // Impede que uma promocao em voo, lida ANTES desta edicao comecar, grave
   // por cima o valor antigo depois que esta gravacao ja tiver terminado
   // (reverteria a edicao do usuario). writeSyncBatch nao filtra por esta
-  // marca - so a promocao em segundo plano filtra.
+  // marca - so a promocao em segundo plano filtra. settlePendingPromotion
+  // no finally: mesmo se a gravacao rejeitar (quota), a chave nao pode
+  // ficar travada em Infinity impedindo promocoes legitimas depois.
   cancelPendingPromotion(key);
   return checkQuotaBeforeWrite(key, limpa).then(check => {
     if (!check.ok) {
@@ -430,7 +458,7 @@ function writeNoteWithFallback(key, note) {
       if (limitType) return saveToLocalFallback(key, limpa, limitType);
       return limpa;
     });
-  });
+  }).finally(() => settlePendingPromotion(key));
 }
 
 /**
@@ -513,6 +541,8 @@ function removeFromBothAreas(keys) {
   // Marca ANTES de remover: se houver uma promocao em voo para uma destas
   // chaves (getAllNotes rodando em paralelo), a proxima reconciliacao dela
   // ve a chave cancelada e nao grava - a exclusao nao pode perder a corrida.
+  // settlePendingPromotion no finally, mesmo se o remove falhar: a chave
+  // nao pode ficar travada em Infinity bloqueando promocoes futuras.
   cancelPendingPromotion(keys);
 
   const remover = area => new Promise((resolve, reject) => {
@@ -521,7 +551,9 @@ function removeFromBothAreas(keys) {
       else resolve();
     });
   });
-  return Promise.all([remover('sync'), remover('local')]).then(() => undefined);
+  return Promise.all([remover('sync'), remover('local')])
+    .then(() => undefined)
+    .finally(() => settlePendingPromotion(keys));
 }
 
 /**
