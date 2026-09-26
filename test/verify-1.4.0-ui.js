@@ -9,7 +9,7 @@
  *   3. Aba Console, cole este arquivo todo e de Enter
  *   Se pedir, digite "allow pasting" antes.
  *
- * Esperado: 18/18.
+ * Esperado: 22/22.
  *
  * Rode uma unica vez por sessao do popup.
  *
@@ -204,23 +204,96 @@ const NotasPatTest = {
   const todas3 = await getAllNotes();
   NotasPatTest.assert('B13 nota excluida nao ressuscita', !todas3['666']);
 
-  // Corrida: exclusao durante uma promocao ja em voo. getAllNotes() le
-  // "ainda existe em local, promove" e so DEPOIS (varios awaits: planSyncBatch,
-  // filterUnchangedLocalNotes, sync.set) e que grava no sync. Se o usuario
-  // excluir nesse meio-tempo, a nota nao pode ressuscitar no sync.
-  for (let i = 0; i < 5; i++) {
-    const k = `note_77${i}`, p = `77${i}`;
-    await new Promise(r => chrome.storage.sync.set({ [k]: { id: p, text: 'velha', updatedAt: '2020-01-01T00:00:00.000Z' } }, r));
-    await new Promise(r => chrome.storage.local.set({ [k]: { id: p, text: 'nova', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true } }, r));
-    getAllNotes(); // dispara a promocao, NAO espera (e a corrida que queremos)
-    await deleteNote(p); // usuario exclui enquanto a promocao esta em voo
+  // Corrida: exclusao ENTRE a decisao de promover e a gravacao de fato no
+  // sync. reconcileNamespaces so decide via filterUnchangedLocalNotes; para
+  // acertar a janela exata (depois da decisao, antes do sync.set) o teste
+  // troca essa funcao por uma versao que dispara o delete no meio do caminho,
+  // e restaura a original no final - sem isso a exclusao aconteceria cedo
+  // ou tarde demais e o teste passaria mesmo sem o fix (falso positivo).
+  await NotasPatTest.reset();
+  const filtroOriginal = filterUnchangedLocalNotes;
+  window.filterUnchangedLocalNotes = function (entries) {
+    return filtroOriginal(entries).then(async (validas) => {
+      if (validas.note_880) await deleteNote('880'); // exclui DEPOIS da decisao, ANTES do sync.set
+      return validas;
+    });
+  };
+  try {
+    await new Promise(r => chrome.storage.sync.set({ note_880: { id: '880', text: 'velha', updatedAt: '2020-01-01T00:00:00.000Z' } }, r));
+    await new Promise(r => chrome.storage.local.set({ note_880: { id: '880', text: 'nova', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true } }, r));
+    await getAllNotes(); // decide promover; o delete acontece dentro do proprio getAllNotes (via troca acima)
+    await new Promise(r => setTimeout(r, 500)); // sync.set do lado de dentro termina
+    const posCorridaSync = await new Promise(r => chrome.storage.sync.get(['note_880'], r));
+    const posCorridaLocal = await new Promise(r => chrome.storage.local.get(['note_880'], r));
+    NotasPatTest.assert('B14 nota excluida entre a decisao e o sync.set nao ressuscita',
+      !posCorridaSync.note_880 && !posCorridaLocal.note_880);
+  } finally {
+    window.filterUnchangedLocalNotes = filtroOriginal; // restaura mesmo se o assert acima falhar
   }
-  await new Promise(r => setTimeout(r, 800)); // deixa qualquer promocao em voo terminar
-  const posCorrida = await new Promise(r => chrome.storage.sync.get(['note_770', 'note_771', 'note_772', 'note_773', 'note_774'], r));
-  const posCorridaLocal = await new Promise(r => chrome.storage.local.get(['note_770', 'note_771', 'note_772', 'note_773', 'note_774'], r));
-  const ressuscitou = Object.keys(posCorrida).some(k => !!posCorrida[k]) || Object.keys(posCorridaLocal).some(k => !!posCorridaLocal[k]);
-  NotasPatTest.assert('B14 nota excluida durante promocao em voo nao ressuscita', !ressuscitou);
-  console.log('[NotasPat][TESTE]     esperado no Bloco B: 14/14');
+
+  // Controle negativo do B14: se o cancelamento NAO acontecesse, a mesma
+  // sequencia teria que ressuscitar a nota. Prova que o teste sabe detectar
+  // a corrida (sem isso, B14 podia estar passando por nao testar nada).
+  await NotasPatTest.reset();
+  window.filterUnchangedLocalNotes = function (entries) {
+    return filtroOriginal(entries).then(async (validas) => {
+      if (validas.note_881) {
+        await deleteNote('881');
+        promotionsCancelled.delete('note_881'); // desarma a protecao de proposito
+      }
+      return validas;
+    });
+  };
+  try {
+    await new Promise(r => chrome.storage.sync.set({ note_881: { id: '881', text: 'velha', updatedAt: '2020-01-01T00:00:00.000Z' } }, r));
+    await new Promise(r => chrome.storage.local.set({ note_881: { id: '881', text: 'nova', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true } }, r));
+    await getAllNotes();
+    await new Promise(r => setTimeout(r, 500));
+    const semProtecao = await new Promise(r => chrome.storage.sync.get(['note_881'], r));
+    NotasPatTest.assert('B15 controle: sem a protecao, a nota de fato ressuscitaria', !!semProtecao.note_881);
+  } finally {
+    window.filterUnchangedLocalNotes = filtroOriginal;
+  }
+
+  // Salvar de novo apos excluir nao pode ser cancelado pela marca da exclusao
+  // (bug encontrado em revisao: writeSyncBatch nao pode filtrar o caminho de
+  // salvar, so o de promocao - senao recriar uma nota apos exclui-la some
+  // sem erro e sem cair no fallback local). B16 passa mesmo com o bug (a
+  // marca ja tera expirado ou nunca existido nessa ordem); B17 e a checagem
+  // que de fato pegaria a regressao, olhando os dois namespaces direto.
+  await NotasPatTest.reset();
+  await deleteNote('990');
+  const recriada = await saveNote('990', 'recriada apos exclusao', '#fff8c6', []);
+  NotasPatTest.assertEquals('B16 nota recriada apos exclusao nao se perde', recriada.text, 'recriada apos exclusao');
+  const recriadaSync = await new Promise(r => chrome.storage.sync.get(['note_990'], r));
+  const recriadaLocal = await new Promise(r => chrome.storage.local.get(['note_990'], r));
+  NotasPatTest.assert('B17 nota recriada esta em algum namespace (prova real)', !!recriadaSync.note_990 || !!recriadaLocal.note_990);
+
+  // Corrida simetrica a B14, mas com EDICAO no lugar de exclusao: uma
+  // promocao que leu a versao antiga antes da edicao nao pode gravar por
+  // cima da versao nova depois que a edicao ja terminou (reverteria a
+  // edicao do usuario e propagaria a versao velha para os outros
+  // computadores). Mesmo truque de trocar filterUnchangedLocalNotes.
+  await NotasPatTest.reset();
+  window.filterUnchangedLocalNotes = function (entries) {
+    return filtroOriginal(entries).then(async (validas) => {
+      if (validas.note_882) await saveNote('882', 'editada durante a promocao', '#fff8c6', []);
+      return validas;
+    });
+  };
+  try {
+    await new Promise(r => chrome.storage.sync.set({ note_882: { id: '882', text: 'velha', updatedAt: '2020-01-01T00:00:00.000Z' } }, r));
+    await new Promise(r => chrome.storage.local.set({ note_882: { id: '882', text: 'nova (pre-edicao)', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true } }, r));
+    await getAllNotes();
+    await new Promise(r => setTimeout(r, 500));
+    const posEdicao = await new Promise(r => chrome.storage.sync.get(['note_882'], r));
+    NotasPatTest.assertEquals('B18 edicao concorrente com a promocao nao e revertida',
+      posEdicao.note_882 && posEdicao.note_882.text, 'editada durante a promocao');
+  } finally {
+    window.filterUnchangedLocalNotes = filtroOriginal;
+  }
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco B: 18/18');
 
   // =========================================================
   // BLOCO C — Task 6: textos padrao + saude do storage
@@ -241,6 +314,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco C: 4/4');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 2 (total esperado: 18/18) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 2 (total esperado: 22/22) =====');
   console.log('[NotasPat][TESTE] Ao terminar as duas partes: NotasPatTest.restore(NotasPatTest._backup) se quiser os dados de volta.');
 })();
