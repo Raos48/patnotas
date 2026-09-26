@@ -85,10 +85,26 @@ function readNotesFromArea(area, keys) {
 // (ex.: popup lista as notas e logo checa a saude) nao gravam a mesma nota duas vezes
 const promotionsInFlight = new Set();
 // Chaves cuja promocao em andamento deve ser abortada antes de gravar no
-// sync: o usuario excluiu (ou reeditou) a nota depois que a promocao ja
-// tinha lido "local" e decidido promover, mas antes do sync.set concluir.
-// Sem isso a nota excluida podia ressuscitar no sync (ver writeSyncBatch).
+// sync: o usuario excluiu OU editou a nota depois que a promocao ja tinha
+// lido "local" e decidido promover, mas antes do sync.set concluir. Sem
+// isso a nota excluida podia ressuscitar, ou uma edicao podia ser revertida
+// por uma versao mais velha ainda em voo (ver reconcileNamespaces).
+// So a promocao em segundo plano filtra por esta marca; salvar uma nota
+// nova/editada NUNCA filtra (senao excluir e recriar no mesmo protocolo
+// faria a nota nova sumir sem erro - ver writeSyncBatch).
 const promotionsCancelled = new Set();
+
+/**
+ * Marca uma chave para que a proxima promocao em voo a ignore, e agenda a
+ * limpeza sozinha da marca (TTL) para o caso de nao existir promocao
+ * nenhuma no momento - senao a marca ficaria presa para sempre.
+ * @param {string|string[]} keys - chave(s) note_<protocolo>
+ */
+function cancelPendingPromotion(keys) {
+  const lista = Array.isArray(keys) ? keys : [keys];
+  lista.forEach(c => promotionsCancelled.add(c));
+  setTimeout(() => lista.forEach(c => promotionsCancelled.delete(c)), 5000);
+}
 
 /**
  * Das notas planejadas para promocao, mantem so as que continuam em local
@@ -155,6 +171,20 @@ function reconcileNamespaces(merged, obsoleteLocalKeys, promotableKeys) {
   // so remove de local depois de confirmar a gravacao. As que nao cabem ficam como estao.
   planSyncBatch(entries)
     .then(({ fits }) => filterUnchangedLocalNotes(fits))
+    .then(promover => {
+      // Reconfere promotionsCancelled IMEDIATAMENTE ANTES do sync.set (nao so
+      // no inicio desta funcao): entre a leitura que decidiu promover e aqui
+      // ha varios awaits (planSyncBatch, filterUnchangedLocalNotes) onde o
+      // usuario pode ter excluido a nota. So esta chamada (promocao em
+      // segundo plano) filtra; salvar uma nota nova/editada nunca filtra.
+      Object.keys(promover).forEach(c => {
+        if (promotionsCancelled.has(c)) {
+          delete promover[c];
+          promotionsCancelled.delete(c);
+        }
+      });
+      return promover;
+    })
     .then(promover => writeSyncBatch(promover).then(limitType => {
       const total = Object.keys(promover).length;
       if (!limitType && total > 0) console.log('[NotasPat] ' + total + ' nota(s) salva(s) so neste computador subiram para o sync');
@@ -266,24 +296,19 @@ function syncSetWithRateRetry(items) {
  * Grava notas no sync e, so depois de confirmado, remove as copias locais
  * (fallbacks antigos) dessas chaves.
  *
- * Reconfere promotionsCancelled IMEDIATAMENTE ANTES do sync.set (nao so no
- * inicio da reconciliacao): entre a leitura que decidiu promover e este
- * ponto ha varios awaits (planSyncBatch, filterUnchangedLocalNotes) onde o
- * usuario pode ter excluido a nota. Gravar mesmo assim a traria de volta.
+ * NAO filtra promotionsCancelled aqui: esta funcao tambem e usada pelo
+ * caminho de salvar uma nota nova/editada (writeNoteWithFallback). Uma
+ * exclusao seguida de recriacao no mesmo protocolo cancelaria a propria
+ * gravacao da nota nova, que sumiria sem erro e sem cair no fallback local.
+ * O cancelamento de promocao fica isolado em reconcileNamespaces, o unico
+ * chamador que pode estar gravando uma versao ja obsoleta (lida antes da
+ * exclusao do usuario).
  * @param {Object} entries - { chave: nota } ja sem _syncFallback
  * @returns {Promise<null|string>} null se gravou; senao o limitType do erro
  */
 function writeSyncBatch(entries) {
-  let chaves = Object.keys(entries);
+  const chaves = Object.keys(entries);
   if (chaves.length === 0) return Promise.resolve(null);
-
-  const canceladas = chaves.filter(c => promotionsCancelled.has(c));
-  if (canceladas.length > 0) {
-    canceladas.forEach(c => { delete entries[c]; promotionsCancelled.delete(c); });
-    chaves = Object.keys(entries);
-    console.log('[NotasPat] Promocao cancelada (nota excluida/alterada durante a leitura):', canceladas.length);
-    if (chaves.length === 0) return Promise.resolve(null);
-  }
 
   return syncSetWithRateRetry(entries).then(limitType => {
     if (limitType) {
@@ -391,6 +416,11 @@ function saveToLocalFallback(key, note, limitType) {
  */
 function writeNoteWithFallback(key, note) {
   const limpa = withoutSyncFallback(note);
+  // Impede que uma promocao em voo, lida ANTES desta edicao comecar, grave
+  // por cima o valor antigo depois que esta gravacao ja tiver terminado
+  // (reverteria a edicao do usuario). writeSyncBatch nao filtra por esta
+  // marca - so a promocao em segundo plano filtra.
+  cancelPendingPromotion(key);
   return checkQuotaBeforeWrite(key, limpa).then(check => {
     if (!check.ok) {
       return saveToLocalFallback(key, limpa, check.limitType);
@@ -481,13 +511,9 @@ function updateExistingNote(protocolo, changes) {
  */
 function removeFromBothAreas(keys) {
   // Marca ANTES de remover: se houver uma promocao em voo para uma destas
-  // chaves (getAllNotes rodando em paralelo), o proximo writeSyncBatch dela
+  // chaves (getAllNotes rodando em paralelo), a proxima reconciliacao dela
   // ve a chave cancelada e nao grava - a exclusao nao pode perder a corrida.
-  const listaChaves = Array.isArray(keys) ? keys : [keys];
-  listaChaves.forEach(c => promotionsCancelled.add(c));
-  // Se nao havia promocao em voo, ninguem consome a marca: limpa sozinha
-  // para nao acumular chaves para sempre num set em memoria.
-  setTimeout(() => listaChaves.forEach(c => promotionsCancelled.delete(c)), 5000);
+  cancelPendingPromotion(keys);
 
   const remover = area => new Promise((resolve, reject) => {
     chrome.storage[area].remove(keys, () => {
