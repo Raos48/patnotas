@@ -7,8 +7,8 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 15/15.
- *   - Se D1/D2/D3 falharem, PARAR: ha risco de perda de dados.
+ * Esperado: 24/24.
+ *   - Se D1/D2/D3/D4/D5/D5b falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
  *     passa true, para nao repetir o aviso a cada cold start do worker.
@@ -206,7 +206,28 @@ const NotasPatTest = {
   await migrateNotesToSync();
   const sync4 = await new Promise(r => chrome.storage.sync.get(['note_y'], r));
   NotasPatTest.assert('A9 marca _syncFallback nao vaza para o sync', sync4.note_y && sync4.note_y._syncFallback !== true);
-  console.log('[NotasPat][TESTE]     esperado no Bloco A: 9/9');
+
+  // Snapshot pre-migracao: rede de seguranca contra o caso em que este
+  // Chrome ainda nao baixou o sync de outro PC quando a migracao roda (o
+  // sync do Chrome chega em segundo plano, de forma assincrona - nem o
+  // guard de recencia nem o merge de textos ajudam se o dado do outro PC
+  // simplesmente ainda nao chegou aqui). Existe apos a 1a migracao e NAO e
+  // sobrescrito por uma 2a (senao a 2a chamada apagaria o snapshot da 1a
+  // e a rede de seguranca perderia o sentido).
+  await NotasPatTest.reset();
+  await new Promise(r => chrome.storage.local.set({
+    note_snap: { id: 'snap', text: 'para o snapshot', updatedAt: '2030-01-01T00:00:00.000Z' }
+  }, r));
+  await migrateNotesToSync();
+  const snap1 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
+  NotasPatTest.assert('A10 snapshot pre-migracao existe e guarda a nota original',
+    snap1.premigracao_1_4_0 && snap1.premigracao_1_4_0.notas && !!snap1.premigracao_1_4_0.notas.note_snap);
+  await migrateNotesToSync(); // 2a passada nao deve mexer no snapshot
+  const snap2 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
+  NotasPatTest.assertEquals('A11 snapshot nao e sobrescrito por uma 2a migracao',
+    snap2.premigracao_1_4_0 && snap2.premigracao_1_4_0.quando, snap1.premigracao_1_4_0.quando);
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco A: 11/11');
 
   // =========================================================
   // BLOCO D — Task 10: usuario existente nao perde dados (CRITICO)
@@ -234,8 +255,46 @@ const NotasPatTest = {
   NotasPatTest.assertEquals('D1 as 40 notas continuam acessiveis', qtdSync + qtdLocal, 40);
   NotasPatTest.assert('D2 texto padrao preservado', Array.isArray(dSync.standard_texts) && dSync.standard_texts.length === 1);
   NotasPatTest.assertEquals('D3 conteudo intacto', dSync.note_705 && dSync.note_705.text, 'nota real 5');
-  console.log('[NotasPat][TESTE]     esperado no Bloco D: 3/3');
-  console.log('[NotasPat][TESTE]     *** SE D1/D2/D3 FALHAREM, PARAR: ha risco de perda de dados ***');
+
+  // Dois PCs, cada um com seus proprios textos padrao locais (nenhum viu o
+  // sync do outro ainda): o PRIMEIRO a atualizar sobe os seus. O SEGUNDO,
+  // ao atualizar, tem que mesclar com o que ja esta no sync - nao descartar
+  // os proprios so porque "ja existe algo la" (bug encontrado em revisao).
+  await new Promise(r => chrome.storage.sync.set({
+    standard_texts: [{ id: 'pc1_texto', title: 'Do PC 1', text: 'y'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+  }, r));
+  await new Promise(r => chrome.storage.local.set({
+    standard_texts: [{ id: 'pc2_texto', title: 'Do PC 2', text: 'z'.repeat(40), createdAt: '2026-02-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }]
+  }, r));
+  await migrateNotesToSync();
+  const dSync2 = await new Promise(r => chrome.storage.sync.get(['standard_texts'], r));
+  const idsTextos = (dSync2.standard_texts || []).map(t => t.id);
+  NotasPatTest.assert('D4 textos padrao de dois PCs sao mesclados, nenhum se perde',
+    idsTextos.includes('pc1_texto') && idsTextos.includes('pc2_texto'));
+
+  // Mesmo cenario de D4, mas a uniao dos dois PCs NAO cabe em 8KB (bug
+  // encontrado em revisao: se a gravacao da uniao falhar, local tem que
+  // ficar com a UNIAO, nao so com os textos deste PC - senao os do outro
+  // PC, que so existiam no sync, desapareceriam da UI deste PC e o proximo
+  // salvamento aqui os apagaria tambem do sync).
+  await NotasPatTest.reset();
+  await new Promise(r => chrome.storage.sync.set({
+    standard_texts: [{ id: 'pc1_grande', title: 'Grande do PC 1', text: 'w'.repeat(5000), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+  }, r));
+  await new Promise(r => chrome.storage.local.set({
+    standard_texts: [{ id: 'pc2_grande', title: 'Grande do PC 2', text: 'z'.repeat(5000), createdAt: '2026-02-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }]
+  }, r));
+  await migrateNotesToSync();
+  const dLocalUniao = await new Promise(r => chrome.storage.local.get(['standard_texts'], r));
+  const dSyncUniao = await new Promise(r => chrome.storage.sync.get(['standard_texts'], r));
+  const idsLocalUniao = (dLocalUniao.standard_texts || []).map(t => t.id);
+  NotasPatTest.assert('D5 uniao que nao cabe fica em local (nao so os textos deste PC)',
+    idsLocalUniao.includes('pc1_grande') && idsLocalUniao.includes('pc2_grande'));
+  NotasPatTest.assert('D5b sync mantem sua versao anterior intacta (nao apagou pc1_grande)',
+    (dSyncUniao.standard_texts || []).some(t => t.id === 'pc1_grande'));
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco D: 6/6');
+  console.log('[NotasPat][TESTE]     *** SE D1/D2/D3/D4/D5/D5b FALHAREM, PARAR: ha risco de perda de dados ***');
 
   // =========================================================
   // BLOCO E — lembretes continuam funcionando apos a migracao
@@ -266,7 +325,50 @@ const NotasPatTest = {
     urlIcone.endsWith('/icons/icon128.png') && !urlIcone.includes('/background/'));
   console.log('[NotasPat][TESTE]     esperado no Bloco E: 3/3');
 
+  // =========================================================
+  // BLOCO F — lote unico de gravacoes (nao 1 write por nota)
+  // Cada chrome.storage.sync.set() conta 1 write contra o limite de
+  // 120/minuto. onInstalled e o cold-start podem disparar quase juntos
+  // (ver log do proprio carregamento acima: duas linhas de "Migracao para
+  // sync" seguidas); sem lote nem fila, ~60 notas reais bastariam para
+  // estourar o limite numa atualizacao normal. Conta as chamadas reais.
+  // =========================================================
+  console.log('[NotasPat][TESTE] --- Bloco F: lote unico + fila ---');
+  await NotasPatTest.reset();
+  const muitasF = {};
+  for (let i = 0; i < 100; i++) {
+    muitasF[`note_f${i}`] = { id: `f${i}`, text: `nota ${i}`, updatedAt: new Date(2030, 0, i + 1).toISOString() };
+  }
+  await new Promise(r => chrome.storage.local.set(muitasF, r));
+
+  let chamadasSet = 0;
+  const setOriginal = chrome.storage.sync.set.bind(chrome.storage.sync);
+  chrome.storage.sync.set = function (...args) { chamadasSet++; return setOriginal(...args); };
+  // Confirma que a substituicao pegou ANTES de confiar em chamadasSet: em
+  // modo nao-estrito uma atribuicao que falhasse silenciosamente deixaria
+  // chamadasSet em 0 para sempre, e "0 <= 4" passaria sem testar nada.
+  NotasPatTest.assert('F0 substituicao de sync.set esta ativa (pre-condicao do F1)', chrome.storage.sync.set !== setOriginal);
+  let resultadosF;
+  try {
+    // Duas chamadas "ao mesmo tempo", como onInstalled e o cold-start
+    // fariam na vida real - a fila deve serializar, nao dobrar as escritas.
+    resultadosF = await Promise.all([migrateNotesToSync(), migrateNotesToSync({ notificar: true })]);
+  } finally {
+    chrome.storage.sync.set = setOriginal;
+  }
+  // Bloco F nao tem textos padrao, entao o lote de 100 notas e a UNICA
+  // gravacao esperada: exatamente 1 chamada (nao 100, nao 0).
+  NotasPatTest.assertEquals('F1 exatamente 1 chamada de sync.set para as 100 notas (nao 1 por nota)', chamadasSet, 1);
+  const fSync = await new Promise(r => chrome.storage.sync.get(null, r));
+  const fLocal = await new Promise(r => chrome.storage.local.get(null, r));
+  const qtdSyncF = Object.keys(fSync).filter(k => k.startsWith('note_f')).length;
+  const qtdLocalF = Object.keys(fLocal).filter(k => k.startsWith('note_f')).length;
+  NotasPatTest.assertEquals('F2 as 100 notas continuam acessiveis (nenhuma perdida)', qtdSyncF + qtdLocalF, 100);
+  NotasPatTest.assertEquals('F3 nenhuma sobrou nao migrada (100 notas cabem em 100KB)',
+    resultadosF[0].naoMigradas + resultadosF[1].naoMigradas, 0);
+  console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
+
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 15/15) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 24/24) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
