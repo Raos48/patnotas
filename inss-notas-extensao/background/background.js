@@ -109,22 +109,57 @@ async function migrateToGranularStorage() {
  *
  * Ordena por updatedAt desc: se nem tudo couber, o que sincroniza e o
  * trabalho mais recente, nao uma fatia arbitraria.
- */
-/**
+ *
+ * Serializada por fila (ver migrateNotesToSync mais abaixo): onInstalled e o
+ * cold-start do service worker podem disparar quase ao mesmo tempo. Cada
+ * gravacao no sync conta como 1 write contra o limite de 120/minuto; sem
+ * serializar, as duas passadas juntas gravariam nota por nota (2x o total),
+ * e um usuario real com so ~60 notas ja estouraria o limite na atualizacao -
+ * as que sobrassem cairiam em fallback e o aviso diria "exclua notas
+ * antigas" para notas que cabiam perfeitamente, so nao dentro do limite de
+ * escritas por minuto.
+ *
  * @param {{notificar?: boolean}} opcoes - notificar: so onInstalled deve
  *   avisar o usuario. Esta funcao roda de novo a cada cold start do service
  *   worker (MV3 recicla o worker com frequencia); sem essa distincao, um
  *   usuario com notas em fallback veria o mesmo aviso repetidas vezes ao
  *   longo do dia, mesmo sem nada de novo ter acontecido.
  */
-async function migrateNotesToSync({ notificar = false } = {}) {
+async function executarMigracaoParaSync({ notificar = false } = {}) {
   let migradas = 0;
   let naoMigradas = 0;
+  let houveRate = false;
 
   try {
     const local = await chrome.storage.local.get(null);
     const sync = await chrome.storage.sync.get(null);
     const chavesNota = Object.keys(local).filter(k => k.startsWith(NOTE_PREFIX));
+
+    // Rede de seguranca: guarda uma copia do que este computador tinha em
+    // local ANTES de qualquer escrita desta migracao. Cobre um risco que
+    // nem o guard de recencia nem o merge de textos padrao eliminam: se
+    // este Chrome ainda nao baixou o sync de outro PC (o sync do Chrome e
+    // assincrono, chega em segundo plano), a migracao pode gravar por cima
+    // de dado mais novo de outro computador achando, de boa fe, que esta
+    // versao local e a mais recente. Feita so uma vez (chave sem prefixo
+    // note_, entao nunca aparece como nota); nao serve para restaurar
+    // automaticamente, so para o usuario nao perder o historico se algo
+    // der errado.
+    const chavePreMigracao = 'premigracao_1_4_0';
+    if (chavesNota.length > 0 || (local.standard_texts && local.standard_texts.length > 0)) {
+      const jaTemSnapshot = await chrome.storage.local.get([chavePreMigracao]);
+      if (!jaTemSnapshot[chavePreMigracao]) {
+        const notasParaSnapshot = {};
+        chavesNota.forEach(k => { notasParaSnapshot[k] = local[k]; });
+        await chrome.storage.local.set({
+          [chavePreMigracao]: {
+            quando: new Date().toISOString(),
+            notas: notasParaSnapshot,
+            standard_texts: local.standard_texts || []
+          }
+        });
+      }
+    }
 
     chavesNota.sort((a, b) => {
       const ta = new Date((local[a] || {}).updatedAt || 0).getTime();
@@ -132,14 +167,22 @@ async function migrateNotesToSync({ notificar = false } = {}) {
       return tb - ta; // mais recente primeiro
     });
 
+    // Primeira passada: decide o destino de cada nota sem gravar nada ainda,
+    // acumulando bytes/contagem como o proprio storage.sync faria (mesma
+    // logica de checkQuotaBeforeWrite, mas de uma vez para o lote inteiro -
+    // chama-la nota a nota tambem seria 1 leitura de rede por nota).
+    let totalBytesSync = await new Promise(r => chrome.storage.sync.getBytesInUse(null, b => r(b || 0)));
+    let totalItensSync = Object.keys(sync).length;
+    const paraLimpar = [];      // ja migrada, so remover do local
+    const paraGravarLote = {};  // vao no unico sync.set em lote
+    const paraFallback = [];    // nao coube: marcar em local (se ainda nao marcada)
+
     for (const key of chavesNota) {
       const nota = local[key];
 
-      // Ja migrada e a copia local nao e mais nova: so limpa. Protege uma
-      // migracao interrompida no meio de regravar por cima de dado mais novo.
       const noSync = sync[key];
       if (noSync && new Date(noSync.updatedAt || 0) >= new Date(nota.updatedAt || 0)) {
-        await chrome.storage.local.remove(key);
+        paraLimpar.push(key);
         continue;
       }
 
@@ -152,53 +195,115 @@ async function migrateNotesToSync({ notificar = false } = {}) {
         ? (() => { const c = Object.assign({}, nota); delete c._syncFallback; return c; })()
         : nota;
 
-      const check = await checkQuotaBeforeWrite(key, paraGravar);
-      if (!check.ok) {
-        // So regrava local se ainda nao estiver marcada - repetir o mesmo
-        // set a cada cold start dispararia storage.onChanged sem necessidade.
-        if (!jaEstavaEmFallback) {
-          await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
-        }
-        naoMigradas++;
+      const tamanho = getItemByteSize(key, paraGravar);
+      const jaExisteNoSync = Object.prototype.hasOwnProperty.call(sync, key);
+      // Se a chave ja existe no sync, o que sera liberado e o tamanho da
+      // copia atual - sem subtrair isso a conta contaria o mesmo espaco 2x
+      // (o que ja esta la + o que vai substituir) e recusaria notas que na
+      // verdade cabem, marcando-as como "nao couberam" sem necessidade.
+      const tamanhoAtualNoSync = jaExisteNoSync ? getItemByteSize(key, sync[key]) : 0;
+      const cabe = tamanho <= SYNC_QUOTA_BYTES_PER_ITEM &&
+        totalBytesSync - tamanhoAtualNoSync + tamanho <= SYNC_QUOTA_BYTES_TOTAL &&
+        (jaExisteNoSync || totalItensSync + 1 <= SYNC_MAX_ITEMS);
+
+      if (!cabe) {
+        paraFallback.push({ key, nota, jaEstavaEmFallback });
         continue;
       }
 
-      try {
-        await chrome.storage.sync.set({ [key]: paraGravar });          // 1. grava
-        const confirmado = await chrome.storage.sync.get([key]);      // 2. confirma
-        if (!confirmado[key]) throw new Error('gravacao nao confirmada');
-        await chrome.storage.local.remove(key);                       // 3. so entao remove
-        sync[key] = paraGravar; // mantem o espelho para as iteracoes seguintes
-        migradas++;
-      } catch (e) {
-        // Falhou a gravacao: a nota FICA no local, intacta
-        if (!jaEstavaEmFallback) {
-          await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+      paraGravarLote[key] = paraGravar;
+      totalBytesSync += tamanho - tamanhoAtualNoSync;
+      if (!jaExisteNoSync) totalItensSync++;
+    }
+
+    if (paraLimpar.length > 0) {
+      await new Promise(r => chrome.storage.local.remove(paraLimpar, r));
+    }
+
+    // Um UNICO sync.set para todo o lote que coube: 1 write, nao N.
+    const chavesLote = Object.keys(paraGravarLote);
+    if (chavesLote.length > 0) {
+      const limitType = await syncSetComRetryDeRate(paraGravarLote);
+      if (!limitType) {
+        const confirmado = await chrome.storage.sync.get(chavesLote);
+        const confirmadas = chavesLote.filter(k => confirmado[k]);
+        if (confirmadas.length > 0) await new Promise(r => chrome.storage.local.remove(confirmadas, r));
+        migradas += confirmadas.length;
+        // Alguma chave nao confirmou mesmo sem erro (raro): trata como as que nao couberam
+        chavesLote.filter(k => !confirmado[k]).forEach(k => paraFallback.push({ key: k, nota: local[k], jaEstavaEmFallback: local[k]._syncFallback === true }));
+      } else if (limitType === 'RATE') {
+        // Limite de escritas por minuto, nao de espaco: as notas cabiam.
+        // Nao conta como naoMigradas nem dispara o aviso de "exclua notas" -
+        // a proxima migracao (proximo cold start) tenta de novo.
+        houveRate = true;
+      } else {
+        // O lote inteiro foi recusado (ex.: TOTAL por poucos bytes de
+        // diferenca entre o pre-calculo e o estado real no servidor - outra
+        // aba escreveu enquanto decidiamos). Tenta nota a nota em vez de
+        // marcar TODAS como fallback: normalmente so uma ou duas de fato
+        // nao cabem, as demais conseguem gravar sozinhas.
+        for (const k of chavesLote) {
+          try {
+            await chrome.storage.sync.set({ [k]: paraGravarLote[k] });
+            const conf = await chrome.storage.sync.get([k]);
+            if (!conf[k]) throw new Error('gravacao nao confirmada');
+            await chrome.storage.local.remove(k);
+            migradas++;
+          } catch (e) {
+            paraFallback.push({ key: k, nota: local[k], jaEstavaEmFallback: local[k]._syncFallback === true });
+          }
         }
+      }
+    }
+
+    // Marca fallback em lote (so as que ainda nao estavam marcadas - repetir
+    // o mesmo set a cada cold start dispararia storage.onChanged a toa)
+    const paraMarcar = {};
+    paraFallback.forEach(({ key, nota, jaEstavaEmFallback }) => {
+      if (!jaEstavaEmFallback) paraMarcar[key] = Object.assign({}, nota, { _syncFallback: true });
+    });
+    if (Object.keys(paraMarcar).length > 0) {
+      await new Promise(r => chrome.storage.local.set(paraMarcar, r));
+    }
+    naoMigradas += paraFallback.length;
+
+    // Textos padrao: mescla por id (nao "pula se ja existe no sync"). Dois
+    // PCs cada um com seus proprios textos locais e um caso comum: sem
+    // merge, o segundo PC a atualizar perderia os proprios textos porque
+    // "ja existe algo no sync" - mesmo sendo um array totalmente diferente.
+    if (local.standard_texts && Array.isArray(local.standard_texts) && local.standard_texts.length > 0) {
+      const jaNoSync = await chrome.storage.sync.get(['standard_texts']);
+      const textosSync = Array.isArray(jaNoSync.standard_texts) ? jaNoSync.standard_texts : [];
+      const porId = new Map();
+      textosSync.forEach(t => porId.set(t.id, t));
+      local.standard_texts.forEach(t => {
+        const atual = porId.get(t.id);
+        if (!atual || new Date(t.updatedAt || 0) > new Date(atual.updatedAt || 0)) porId.set(t.id, t);
+      });
+      const mesclados = Array.from(porId.values());
+      const check = await checkQuotaBeforeWrite('standard_texts', mesclados);
+      if (check.ok) {
+        try {
+          await chrome.storage.sync.set({ standard_texts: mesclados });
+          await chrome.storage.sync.get(['standard_texts']);
+          await chrome.storage.local.remove('standard_texts');
+        } catch (e) {
+          // Nao coube gravar a uniao: local tem que ficar com a UNIAO, nao
+          // so com os textos originais deste PC. getStandardTexts prioriza
+          // local quando nao-vazio - se local ficasse so com os textos
+          // deste PC, os do outro PC (ja no sync) sumiriam da UI aqui, e o
+          // proximo salvamento neste PC gravaria por cima do sync, apagando
+          // os do outro PC nas duas maquinas.
+          await chrome.storage.local.set({ standard_texts: mesclados });
+          naoMigradas++;
+        }
+      } else {
+        await chrome.storage.local.set({ standard_texts: mesclados });
         naoMigradas++;
       }
     }
 
-    // Textos padrao: chave unica, migra inteira ou nao migra
-    if (local.standard_texts && Array.isArray(local.standard_texts) && local.standard_texts.length > 0) {
-      const jaNoSync = await chrome.storage.sync.get(['standard_texts']);
-      if (!jaNoSync.standard_texts) {
-        const check = await checkQuotaBeforeWrite('standard_texts', local.standard_texts);
-        if (check.ok) {
-          try {
-            await chrome.storage.sync.set({ standard_texts: local.standard_texts });
-            await chrome.storage.sync.get(['standard_texts']);
-            await chrome.storage.local.remove('standard_texts');
-          } catch (e) {
-            naoMigradas++;
-          }
-        } else {
-          naoMigradas++;
-        }
-      }
-    }
-
-    console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente`);
+    console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente${houveRate ? ' (limite de escritas por minuto atingido - tenta de novo depois)' : ''}`);
 
     if (notificar && naoMigradas > 0) {
       // Se o cold-start ja tinha migrado tudo que cabia antes deste
@@ -218,6 +323,39 @@ async function migrateNotesToSync({ notificar = false } = {}) {
   }
 
   return { migradas, naoMigradas };
+}
+
+/**
+ * chrome.storage.sync.set que tenta UMA vez de novo se o Chrome recusar por
+ * limite de taxa (RATE). Mesma politica de test/lib/storage.js
+ * (syncSetWithRateRetry), reimplementada aqui porque background.js nao
+ * carrega lib/storage.js.
+ * @returns {Promise<null|string>} null se gravou; senao o limitType do erro
+ */
+function syncSetComRetryDeRate(items) {
+  const tentar = () => new Promise(resolve => {
+    chrome.storage.sync.set(items, () => {
+      const erro = chrome.runtime.lastError;
+      resolve(erro ? limitTypeFromSyncError(erro) : null);
+    });
+  });
+  return tentar().then(limitType => {
+    if (limitType !== 'RATE') return limitType;
+    return new Promise(r => setTimeout(r, 1000)).then(tentar);
+  });
+}
+
+// Serializa execucoes concorrentes: onInstalled e o cold-start do fim deste
+// arquivo podem disparar quase ao mesmo tempo. Sem isso, as duas passadas
+// leriam o mesmo estado do local e cada uma tentaria gravar o mesmo lote de
+// notas - dobrando as escritas contra o limite por minuto (ver comentario
+// em executarMigracaoParaSync). A segunda chamada espera a primeira
+// terminar e roda sobre o estado ja atualizado por ela.
+let filaMigracao = Promise.resolve();
+function migrateNotesToSync(opcoes) {
+  const execucao = filaMigracao.then(() => executarMigracaoParaSync(opcoes));
+  filaMigracao = execucao.catch(() => {}); // uma falha nao trava as proximas
+  return execucao;
 }
 
 // ============ HELPERS ============
