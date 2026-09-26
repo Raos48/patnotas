@@ -32,9 +32,11 @@
   const checar = (ok, msg) => { linha(ok, msg); if (!ok) falhas++; };
 
   // 12 digitos (nao 11): seed-upgrade-1.3.7.js usa '9000000000' (10 digitos)
-  // + i com padStart(2), entao o protocolo real tem 12 digitos. O proprio
-  // codigo de producao (content.js: /^\d{5,}$/) nao limita quantidade de
-  // digitos - protocolos do PAT ja cresceram de 11 para 12 no passado.
+  // + i com padStart(2). Vale notar que o seed gera protocolos de tamanho
+  // MISTO (12 digitos para i<100, 13 digitos para i>=100 - padStart nao
+  // trunca) de proposito: o codigo de producao (content.js: /^\d{5,}$/) nao
+  // limita quantidade de digitos, e os 50 protocolos de 13 digitos ja
+  // sobreviveram migracao, exportacao e importacao intactos num teste real.
   const PROTOCOLO_COM_LEMBRETE = '900000000000';
   const TITULO_TEXTO_B = 'Texto B - criado na 1.3.7';
 

@@ -10,13 +10,17 @@
  *
  * O QUE FAZ:
  *   1. Limpa sync + local (chrome.storage.sync.clear/local.clear)
- *   2. Grava 150 notas com protocolos fixos de 12 digitos,
- *      900000000000-900000000149 (prefixo '9000000000' de 10 digitos +
- *      i com padStart(2) - de proposito nao redondo/nao obvio, para nao
- *      colidir por acidente com protocolo real; o codigo de producao nao
- *      limita quantidade de digitos, entao o teste nao precisa "parecer"
- *      um protocolo real de 11)
- *      diretamente no formato local (como a 1.3.7 gravaria de verdade)
+ *   2. Grava 150 notas com protocolos fixos '9000000000' + i (i de 0 a 149),
+ *      SEM padding real: String(i).padStart(2, '0') so garante 2 digitos
+ *      minimos, entao i=0..99 rende protocolos de 12 digitos
+ *      (900000000000-900000000099) mas i=100..149 rende protocolos de 13
+ *      digitos (9000000000100-9000000000149), ja que padStart nao trunca.
+ *      Isso NAO FOI CORRIGIDO de proposito: o codigo de producao nao limita
+ *      quantidade de digitos, entao um seed com protocolos de tamanhos
+ *      MISTOS (12 e 13) e um teste ainda melhor do que um so tamanho fixo -
+ *      confirmado na pratica: os 50 protocolos de 13 digitos sobreviveram
+ *      migracao, exportacao e importacao intactos.
+ *      Gravado diretamente no formato local (como a 1.3.7 gravaria de verdade)
  *   3. A primeira delas (900000000000) recebe um lembrete 24h a frente
  *   4. Grava um texto padrao 'A' DIRETO NO SYNC (id fixo texto_a_seed),
  *      simulando um segundo computador que ja teria atualizado e subido
