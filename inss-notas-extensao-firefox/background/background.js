@@ -628,50 +628,53 @@ async function updateBadge() {
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace !== 'sync' && namespace !== 'local') return;
 
-  let notesChanged = false;
+  const protocolos = Object.keys(changes)
+    .filter(k => k.startsWith(NOTE_PREFIX))
+    .map(k => k.substring(NOTE_PREFIX.length));
 
-  for (const key of Object.keys(changes)) {
-    if (key.startsWith(NOTE_PREFIX)) {
-      notesChanged = true;
-      const protocolo = key.substring(NOTE_PREFIX.length);
-      const change = changes[key];
-      handleSingleReminderChanged(protocolo, change.oldValue, change.newValue);
-    }
-  }
-
-  if (notesChanged) {
+  if (protocolos.length > 0) {
+    reconciliarAlarmes(protocolos);
     updateBadge();
   }
 });
 
 /**
- * Atualiza o alarme de uma única nota que mudou
+ * Reconcilia o alarme de cada protocolo com o storage MESCLADO (sync + local),
+ * nao com change.oldValue/newValue de um unico namespace.
+ *
+ * Por que: a migracao para sync (e a promocao de fallback em
+ * reconcileNamespaces, em lib/storage.js) grava a nota no sync e SO DEPOIS
+ * remove a copia local - dois eventos separados no MESMO protocolo. O
+ * segundo evento (a remocao local) chegava aqui como "oldNota existe,
+ * newNota nao existe" e era tratado como EXCLUSAO REAL: o alarme criado
+ * pelo primeiro evento (a gravacao no sync) era limpo logo em seguida. O
+ * lembrete sumia toda vez que uma nota com lembrete migrava, ou uma nota em
+ * fallback com lembrete subia para o sync quando espaco era liberado -
+ * silenciosamente, sem nenhum erro.
+ *
+ * Lendo o estado mesclado (getAllNotesFromStorage ja resolve por
+ * recencia), a ordem dos dois eventos deixa de importar: seja qual for o
+ * ultimo a rodar, ve a nota onde ela de fato esta agora. So conta como
+ * exclusao real quando a nota nao existe em NENHUM dos dois namespaces.
  */
-async function handleSingleReminderChanged(protocolo, oldNota, newNota) {
+async function reconciliarAlarmes(protocolos) {
   try {
-    const alarmName = `${ALARM_PREFIX}${protocolo}`;
-    const now = Date.now();
+    const notas = await getAllNotesFromStorage();
+    const agora = Date.now();
 
-    if (!newNota && oldNota) {
-      // Nota removida: limpar alarme
-      await chrome.alarms.clear(alarmName);
-    } else if (newNota) {
-      const oldReminder = oldNota ? oldNota.reminder : null;
-      const newReminder = newNota.reminder;
+    for (const protocolo of protocolos) {
+      const alarmName = `${ALARM_PREFIX}${protocolo}`;
+      const nota = notas[protocolo];
+      const reminderTime = nota && nota.reminder ? new Date(nota.reminder).getTime() : 0;
 
-      if (oldReminder !== newReminder) {
-        if (newReminder) {
-          const reminderTime = new Date(newReminder).getTime();
-          if (reminderTime > now) {
-            await chrome.alarms.create(alarmName, { when: reminderTime });
-          }
-        } else {
-          await chrome.alarms.clear(alarmName);
-        }
+      if (reminderTime > agora) {
+        await chrome.alarms.create(alarmName, { when: reminderTime }); // mesmo nome substitui o alarme anterior
+      } else {
+        await chrome.alarms.clear(alarmName);
       }
     }
   } catch (error) {
-    console.error('[NotasPat] Erro ao atualizar alarme:', error);
+    console.error('[NotasPat] Erro ao atualizar alarmes:', error);
   }
 }
 
