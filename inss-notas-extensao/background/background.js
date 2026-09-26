@@ -155,35 +155,42 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
     // proteção que ela deveria dar.
     try {
       const chavePreMigracao = 'premigracao_1_4_0';
-      const jaTemSnapshot = await chrome.storage.local.get([chavePreMigracao]);
-      const existente = jaTemSnapshot[chavePreMigracao];
-      const idadeDias = existente && existente.quando
-        ? (Date.now() - new Date(existente.quando).getTime()) / 86400000
-        : Infinity; // sem snapshot = trata como "vencido", cria um novo
-
-      // Expira em 30 dias: o snapshot existe para o usuario recuperar
-      // manualmente pelo console logo apos a atualizacao, nao para virar
-      // uma segunda copia permanente de tudo. Um usuario com muitas notas
-      // em fallback local (nao cabem no sync) empurraria local perto do
-      // teto de 10 MB do Chrome (sem unlimitedStorage no manifest) se o
-      // snapshot nunca fosse removido - e dali em diante ATE as gravacoes
-      // normais de fallback comecariam a falhar.
-      if (idadeDias <= 30) {
-        // Ainda dentro da validade: nao mexe (preserva o estado ANTES da
-        // primeira migracao, que e o proposito da rede de seguranca).
-      } else if (chavesNota.length > 0 || (local.standard_texts && local.standard_texts.length > 0)) {
-        const notasParaSnapshot = {};
-        chavesNota.forEach(k => { notasParaSnapshot[k] = local[k]; });
-        await chrome.storage.local.set({
-          [chavePreMigracao]: {
-            quando: new Date().toISOString(),
-            notas: notasParaSnapshot,
-            standard_texts: local.standard_texts || []
-          }
-        });
-      } else if (existente) {
-        // Vencido e nao ha nada de novo para guardar: so remove o antigo.
-        await chrome.storage.local.remove(chavePreMigracao);
+      // Flag de execucao unica (mesmo padrao de textosPadraoMigrados1_4_0):
+      // o snapshot so pode ser criado UMA vez, na primeira migracao. Sem
+      // essa flag, "criar de novo quando vencido" recria o snapshot para
+      // sempre em qualquer usuario que continue com notas em local (quem
+      // tem notas em fallback permanente, por nao caber no sync, sempre vai
+      // ter algo em local) - o oposto do que a expiracao deveria evitar.
+      const jaCriouSnapshot = await chrome.storage.local.get([`${chavePreMigracao}_criado`]);
+      if (!jaCriouSnapshot[`${chavePreMigracao}_criado`]) {
+        if (chavesNota.length > 0 || (local.standard_texts && local.standard_texts.length > 0)) {
+          const notasParaSnapshot = {};
+          chavesNota.forEach(k => { notasParaSnapshot[k] = local[k]; });
+          await chrome.storage.local.set({
+            [chavePreMigracao]: {
+              quando: new Date().toISOString(),
+              notas: notasParaSnapshot,
+              standard_texts: local.standard_texts || []
+            }
+          });
+        }
+        // Marca mesmo quando nao havia nada para guardar: nunca mais tenta.
+        await chrome.storage.local.set({ [`${chavePreMigracao}_criado`]: true });
+      } else {
+        // Ja passou da unica chance de criar: so expira o que ja existe.
+        // Expira em 30 dias: o snapshot existe para o usuario recuperar
+        // manualmente pelo console logo apos a atualizacao, nao para virar
+        // uma segunda copia permanente de tudo. Sem expirar, um usuario com
+        // muitas notas em fallback (nao cabem no sync) empurraria local
+        // perto do teto de 10 MB do Chrome (sem unlimitedStorage no
+        // manifest) - e dali em diante ATE as gravacoes normais de fallback
+        // comecariam a falhar.
+        const jaTemSnapshot = await chrome.storage.local.get([chavePreMigracao]);
+        const existente = jaTemSnapshot[chavePreMigracao];
+        if (existente && existente.quando) {
+          const idadeDias = (Date.now() - new Date(existente.quando).getTime()) / 86400000;
+          if (idadeDias > 30) await chrome.storage.local.remove(chavePreMigracao);
+        }
       }
     } catch (e) {
       console.warn('[NotasPat] Nao foi possivel gravar o snapshot de seguranca pre-migracao:', e && e.message);
@@ -326,6 +333,7 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
     // depois da migracao (o merge nao tem como saber de uma exclusao,
     // so soma o que ve nos dois lados) - a cada cold start.
     const flagTextosKey = 'textosPadraoMigrados1_4_0';
+    let textosComRate = false; // RATE nao e falha definitiva: nao trava o gate
     const jaMigrouTextos = await chrome.storage.local.get([flagTextosKey]);
     if (!jaMigrouTextos[flagTextosKey]) {
       if (local.standard_texts && Array.isArray(local.standard_texts) && local.standard_texts.length > 0) {
@@ -364,7 +372,7 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
               // gravaria por cima do sync, apagando os do outro PC nas duas
               // maquinas.
               await chrome.storage.local.set({ standard_texts: mesclados });
-              if (limitType === 'RATE') houveRate = true; else naoMigradas++;
+              if (limitType === 'RATE') { houveRate = true; textosComRate = true; } else { naoMigradas++; }
             }
           } catch (e) {
             // Falhou o proprio local.set/.remove (raro): tenta preservar a
@@ -377,14 +385,17 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
           naoMigradas++;
         }
       }
-      // Marca SEMPRE, mesmo sem textos locais para migrar: essa mescla e
-      // coisa de uma vez so. Depois disso, um local.standard_texts
-      // nao-vazio e o fallback normal do dia a dia (writeStandardTexts em
-      // storage.js), que o merge nao deve mais tocar - senao reintroduziria
-      // no sync um texto que o usuario ja excluiu depois da migracao (o
-      // merge nao sabe distinguir "nunca migrado" de "exclusao recente",
-      // so soma o que ve nos dois lados).
-      await chrome.storage.local.set({ [flagTextosKey]: true });
+      // Marca SEMPRE (exceto RATE), mesmo sem textos locais para migrar:
+      // essa mescla e coisa de uma vez so. Depois disso, um
+      // local.standard_texts nao-vazio e o fallback normal do dia a dia
+      // (writeStandardTexts em storage.js), que o merge nao deve mais
+      // tocar - senao reintroduziria no sync um texto que o usuario ja
+      // excluiu depois da migracao (o merge nao sabe distinguir "nunca
+      // migrado" de "exclusao recente", so soma o que ve nos dois lados).
+      // RATE e a excecao: nao e falha de espaco, so nao deu tempo agora -
+      // travar o gate deixaria os textos presos em local para sempre, sem
+      // nunca tentar de novo (o log ja promete "tenta de novo depois").
+      if (!textosComRate) await chrome.storage.local.set({ [flagTextosKey]: true });
     }
 
     console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente${houveRate ? ' (limite de escritas por minuto atingido - tenta de novo depois)' : ''}`);
