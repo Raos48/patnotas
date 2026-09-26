@@ -196,9 +196,32 @@ async function toggleTheme() {
   }
 }
 
+/**
+ * Preenche campos ausentes/invalidos de uma nota SOMENTE para exibicao -
+ * nunca grava o resultado de volta no storage. Uma nota com color/tags
+ * ausentes (dado incompleto ou corrompido) nao pode quebrar a
+ * renderizacao da lista INTEIRA - antes desta funcao, isso e exatamente o
+ * que acontecia (renderNotes mapeia todas de uma vez; um erro em qualquer
+ * uma interrompia o map antes de desenhar qualquer nota).
+ * @param {Object} nota
+ * @returns {Object} copia da nota com campos seguros para exibir
+ */
+function normalizarNotaParaExibicao(nota) {
+  return Object.assign({}, nota, {
+    color: (typeof nota.color === 'string' && nota.color) ? nota.color : '#fff8c6',
+    tags: Array.isArray(nota.tags) ? nota.tags : [],
+    text: typeof nota.text === 'string' ? nota.text : '',
+    reminder: nota.reminder || null
+  });
+}
+
 async function loadNotes() {
   try {
-    notasData = await getAllNotes();
+    const brutas = await getAllNotes();
+    notasData = {};
+    Object.keys(brutas).forEach(protocolo => {
+      notasData[protocolo] = normalizarNotaParaExibicao(brutas[protocolo]);
+    });
     updateCounter();
     renderNotes();
     updateStatistics();
@@ -532,7 +555,18 @@ function renderNotes() {
   const paginated = sorted.slice(0, displayedCount);
   const remaining = sorted.length - displayedCount;
 
-  let html = paginated.map(([protocolo, nota]) => createNoteItem(protocolo, nota)).join('');
+  // Uma nota malformada que normalizarNotaParaExibicao nao previu (campo
+  // futuro, dado corrompido de outra forma) fica de fora da lista em vez
+  // de derrubar a renderizacao inteira - o usuario ve as outras N-1 notas
+  // normalmente, e o console aponta qual protocolo investigar.
+  let html = paginated.map(([protocolo, nota]) => {
+    try {
+      return createNoteItem(protocolo, nota);
+    } catch (e) {
+      console.error('[NotasPat] Nota malformada, pulando da lista:', protocolo, e);
+      return '';
+    }
+  }).join('');
 
   if (remaining > 0) {
     html += `<button class="btn-load-more" id="btnLoadMore">Carregar mais (${remaining} restante${remaining !== 1 ? 's' : ''})</button>`;
@@ -1024,6 +1058,11 @@ function getDobraColor(color) {
  * @returns {string} Cor do texto (#1a1a1a para fundos claros, #ffffff para fundos escuros)
  */
 function getTextColorForBackground(hexColor) {
+  // Nota sem color definido (dado corrompido/incompleto) nao pode quebrar a
+  // renderizacao de TODAS as notas - renderNotes mapeia a lista inteira
+  // numa unica passada, e um erro nao tratado aqui interrompe a lista
+  // inteira antes mesmo de desenhar a primeira nota.
+  if (!hexColor || typeof hexColor !== 'string') return '#1a1a1a';
   // Remover # se presente
   const hex = hexColor.replace('#', '');
 
