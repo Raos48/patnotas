@@ -155,19 +155,35 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
     // proteção que ela deveria dar.
     try {
       const chavePreMigracao = 'premigracao_1_4_0';
-      if (chavesNota.length > 0 || (local.standard_texts && local.standard_texts.length > 0)) {
-        const jaTemSnapshot = await chrome.storage.local.get([chavePreMigracao]);
-        if (!jaTemSnapshot[chavePreMigracao]) {
-          const notasParaSnapshot = {};
-          chavesNota.forEach(k => { notasParaSnapshot[k] = local[k]; });
-          await chrome.storage.local.set({
-            [chavePreMigracao]: {
-              quando: new Date().toISOString(),
-              notas: notasParaSnapshot,
-              standard_texts: local.standard_texts || []
-            }
-          });
-        }
+      const jaTemSnapshot = await chrome.storage.local.get([chavePreMigracao]);
+      const existente = jaTemSnapshot[chavePreMigracao];
+      const idadeDias = existente && existente.quando
+        ? (Date.now() - new Date(existente.quando).getTime()) / 86400000
+        : Infinity; // sem snapshot = trata como "vencido", cria um novo
+
+      // Expira em 30 dias: o snapshot existe para o usuario recuperar
+      // manualmente pelo console logo apos a atualizacao, nao para virar
+      // uma segunda copia permanente de tudo. Um usuario com muitas notas
+      // em fallback local (nao cabem no sync) empurraria local perto do
+      // teto de 10 MB do Chrome (sem unlimitedStorage no manifest) se o
+      // snapshot nunca fosse removido - e dali em diante ATE as gravacoes
+      // normais de fallback comecariam a falhar.
+      if (idadeDias <= 30) {
+        // Ainda dentro da validade: nao mexe (preserva o estado ANTES da
+        // primeira migracao, que e o proposito da rede de seguranca).
+      } else if (chavesNota.length > 0 || (local.standard_texts && local.standard_texts.length > 0)) {
+        const notasParaSnapshot = {};
+        chavesNota.forEach(k => { notasParaSnapshot[k] = local[k]; });
+        await chrome.storage.local.set({
+          [chavePreMigracao]: {
+            quando: new Date().toISOString(),
+            notas: notasParaSnapshot,
+            standard_texts: local.standard_texts || []
+          }
+        });
+      } else if (existente) {
+        // Vencido e nao ha nada de novo para guardar: so remove o antigo.
+        await chrome.storage.local.remove(chavePreMigracao);
       }
     } catch (e) {
       console.warn('[NotasPat] Nao foi possivel gravar o snapshot de seguranca pre-migracao:', e && e.message);
@@ -325,17 +341,35 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
         const check = await checkQuotaBeforeWrite('standard_texts', mesclados);
         if (check.ok) {
           try {
-            await syncSetComRetryDeRate({ standard_texts: mesclados });
-            await chrome.storage.sync.get(['standard_texts']);
-            await chrome.storage.local.remove('standard_texts');
+            // syncSetComRetryDeRate NUNCA rejeita - resolve null (gravou) ou
+            // o limitType do erro. Um try/catch em volta dela sozinha nunca
+            // pegaria uma falha de escrita (so falhas de local.set/.remove
+            // depois); o resultado precisa ser checado explicitamente, senao
+            // uma rejeicao (ex.: RATE, bem provavel logo apos o lote de
+            // notas ter acabado de ocupar o mesmo limite por minuto) ia
+            // direto para o local.remove('standard_texts') como se tivesse
+            // gravado - apagando a UNICA copia dos textos deste usuario.
+            const limitType = await syncSetComRetryDeRate({ standard_texts: mesclados });
+            const confirmado = limitType ? {} : await chrome.storage.sync.get(['standard_texts']);
+            const gravouTudo = !limitType && Array.isArray(confirmado.standard_texts) &&
+              mesclados.every(t => confirmado.standard_texts.some(c => c.id === t.id));
+            if (gravouTudo) {
+              await chrome.storage.local.remove('standard_texts');
+            } else {
+              // Nao gravou (quota ou RATE): local tem que ficar com a
+              // UNIAO, nao so com os textos originais deste PC.
+              // getStandardTexts prioriza local quando nao-vazio - se local
+              // ficasse so com os textos deste PC, os do outro PC (ja no
+              // sync) sumiriam da UI aqui, e o proximo salvamento neste PC
+              // gravaria por cima do sync, apagando os do outro PC nas duas
+              // maquinas.
+              await chrome.storage.local.set({ standard_texts: mesclados });
+              if (limitType === 'RATE') houveRate = true; else naoMigradas++;
+            }
           } catch (e) {
-            // Nao coube gravar a uniao: local tem que ficar com a UNIAO, nao
-            // so com os textos originais deste PC. getStandardTexts prioriza
-            // local quando nao-vazio - se local ficasse so com os textos
-            // deste PC, os do outro PC (ja no sync) sumiriam da UI aqui, e o
-            // proximo salvamento neste PC gravaria por cima do sync, apagando
-            // os do outro PC nas duas maquinas.
-            await chrome.storage.local.set({ standard_texts: mesclados });
+            // Falhou o proprio local.set/.remove (raro): tenta preservar a
+            // uniao em local mesmo assim, sem deixar o usuario sem nada.
+            await chrome.storage.local.set({ standard_texts: mesclados }).catch(() => {});
             naoMigradas++;
           }
         } else {
