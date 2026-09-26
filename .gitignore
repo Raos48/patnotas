@@ -33,3 +33,12 @@ bkp/
 *.md
 !CLAUDE.md
 !inss-notas-extensao-firefox/privacy.md
+# Design-system records read by tooling - same class as CLAUDE.md, not prose
+!PRODUCT.md
+!DESIGN.md
+!/.impeccable/critique/*.md
+
+# Impeccable design tooling - version the records, not the runtime state
+.impeccable/hook.cache.json
+.impeccable/live/
+.impeccable/*.png

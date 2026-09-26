@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-26T00:00:00.000Z",
+  "title": "Design System: NotasPat",
+  "extensions": {
+    "colorMeta": {
+      "green-office": {
+        "role": "primary",
+        "displayName": "Verde Ofício",
+        "canonical": "#0B7D3B",
+        "tonalRamp": ["#043213", "#065428", "#08592A", "#0A6F35", "#0B7D3B", "#2EAD5E", "#5ECC7E", "#A8DCBA"]
+      },
+      "blue-expediente": {
+        "role": "secondary",
+        "displayName": "Azul Expediente",
+        "canonical": "#145FA3",
+        "tonalRamp": ["#0A2F54", "#0D4170", "#11528E", "#145FA3", "#3B7DD8", "#4A90D9", "#8DC8F3", "#C6E5F8"]
+      },
+      "yellow-seal": {
+        "role": "accent",
+        "displayName": "Amarelo Selo",
+        "canonical": "#F2B73B",
+        "tonalRamp": ["#6B4A08", "#A06E10", "#C18516", "#E0A82A", "#F2B73B", "#F2C870", "#F2D590", "#FFF4DD"]
+      },
+      "error-ink": {
+        "role": "feedback",
+        "displayName": "Vermelho Erro",
+        "canonical": "#B3261E",
+        "tonalRamp": ["#5C120E", "#8C1D18", "#B3261E", "#C84A42", "#F0908A", "#F5B8B5", "#FDE7E7", "#FDEFEE"]
+      },
+      "ink-primary": {
+        "role": "neutral",
+        "displayName": "Grafite",
+        "canonical": "#22252C",
+        "tonalRamp": ["#0F1114", "#181B22", "#22252C", "#2E3340", "#5C6473", "#A4AABC", "#D4D9E2", "#F5F7FA"]
+      },
+      "paper-yellow": {
+        "role": "paper",
+        "displayName": "Papel Amarelo",
+        "canonical": "#fff8c6",
+        "tonalRamp": ["#4A4410", "#7A7020", "#A89A2E", "#C4B84A", "#E0D56A", "#F3E58D", "#FFF8C6", "#FFFCE8"]
+      },
+      "paper-green": {
+        "role": "paper",
+        "displayName": "Papel Verde",
+        "canonical": "#c6f8cf",
+        "tonalRamp": ["#1F5228", "#3A8A48", "#5CB46C", "#8DE5A0", "#A8E8B4", "#C6F8CF", "#DFFAE5", "#F0FCF2"]
+      },
+      "paper-blue": {
+        "role": "paper",
+        "displayName": "Papel Azul",
+        "canonical": "#c6e5f8",
+        "tonalRamp": ["#1F4A66", "#2E6E96", "#5A9BC4", "#8DC8F3", "#A8D6F5", "#C6E5F8", "#DFF0FB", "#F0F8FE"]
+      },
+      "paper-pink": {
+        "role": "paper",
+        "displayName": "Papel Rosa",
+        "canonical": "#f8c6d4",
+        "tonalRamp": ["#6B2438", "#A84A62", "#D46A84", "#F38DA8", "#F5A8BC", "#F8C6D4", "#FBDDE5", "#FEF0F3"]
+      },
+      "paper-orange": {
+        "role": "paper",
+        "displayName": "Papel Laranja",
+        "canonical": "#f8e0c6",
+        "tonalRamp": ["#6B4A22", "#A87838", "#D4A05A", "#F3C48D", "#F5D2A8", "#F8E0C6", "#FBEEDE", "#FDF7F0"]
+      },
+      "paper-purple": {
+        "role": "paper",
+        "displayName": "Papel Roxo",
+        "canonical": "#e0c6f8",
+        "tonalRamp": ["#4A2266", "#7A4A96", "#A872C4", "#C48DF3", "#D4A8F5", "#E0C6F8", "#EFE0FB", "#F8F0FE"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Nome do produto no cabeçalho do popup. Também 24px para valores de estatística."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Títulos de modal e de painel dedicado."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Rótulos de campo de formulário. Variante Protocolo: Bricolage Grotesque 700 13.5px em Verde Ofício."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Corpo de nota, texto de cartão, descrições. Máximo ~65ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Rótulos de estatística e micro-metadados. Única escala em caixa alta."
+      }
+    },
+    "shadows": [
+      {
+        "name": "lift-subtle",
+        "value": "0 2px 8px rgba(34, 37, 44, 0.06)",
+        "purpose": "Resposta de hover em cartão e estatística. Nunca em repouso."
+      },
+      {
+        "name": "lift-hover",
+        "value": "0 4px 12px rgba(34, 37, 44, 0.06)",
+        "purpose": "Hover mais forte em cartão de nota (com translateY(-1px))."
+      },
+      {
+        "name": "lift-modal",
+        "value": "0 20px 60px rgba(34, 37, 44, 0.14), 0 0 0 1px #D4D9E2",
+        "purpose": "Só em diálogo aberto — o painel veio por cima da folha."
+      },
+      {
+        "name": "commit-glow",
+        "value": "0 2px 8px rgba(11, 125, 59, 0.25)",
+        "purpose": "Exclusivo do botão primário em repouso. Hover: 0 4px 12px rgba(11, 125, 59, 0.35). Marca a ação que finaliza."
+      },
+      {
+        "name": "commit-glow-danger",
+        "value": "0 2px 8px rgba(179, 38, 30, 0.25)",
+        "purpose": "Mesmo brilho de commit, em vermelho, para o botão destrutivo."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px rgba(11, 125, 59, 0.08)",
+        "purpose": "Anel de foco de campo de entrada. Verde lavado, nunca glow colorido."
+      },
+      {
+        "name": "paper-weight",
+        "value": "2px 2px 6px rgba(34, 37, 44, 0.12)",
+        "purpose": "Peso do papel no portal. No popup, somar inset 0 1px 0 rgba(255,255,255,0.5)."
+      },
+      {
+        "name": "paper-weight-hover",
+        "value": "3px 4px 10px rgba(34, 37, 44, 0.12)",
+        "purpose": "Papel que sobe da mesa no hover (com translateY(-2px))."
+      },
+      {
+        "name": "toast-lift",
+        "value": "0 8px 24px rgba(34, 37, 44, 0.14)",
+        "purpose": "Aviso flutuante. Só em toast."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "ease",
+        "purpose": "Transições de estado de chrome (botão, campo, chip). 0.15–0.25s."
+      },
+      {
+        "name": "ease-spring",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Entrada de folha do caderno: noteReveal (350ms), modalSlideIn (300ms), toastSlideIn (400ms)."
+      },
+      {
+        "name": "duration-quick",
+        "value": "0.15s",
+        "purpose": "Mudança de cor em chip e ícone."
+      },
+      {
+        "name": "duration-base",
+        "value": "0.2s",
+        "purpose": "Hover/foco de botão e campo."
+      },
+      {
+        "name": "duration-reveal",
+        "value": "0.35s",
+        "purpose": "Cascata de entrada dos cartões de nota (atraso de 40ms por item até o 6º)."
+      }
+    ],
+    "breakpoints": [
+      { "name": "popup", "value": "380px" },
+      { "name": "popup-min-height", "value": "420px" },
+      { "name": "note-compact-max", "value": "220px" },
+      { "name": "modal-max", "value": "400px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "A ação que finaliza. Um por rodapé de diálogo. Verde Ofício com brilho de commit.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Salvar</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;border-radius:10px;background:#0B7D3B;color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(11,125,59,0.25);transition:all 0.2s ease}.ds-btn-primary:hover{background:#0A6F35;box-shadow:0 4px 12px rgba(11,125,59,0.35);transform:translateY(-1px)}.ds-btn-primary:active{transform:translateY(0);background:#08592A}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 2px 8px rgba(11,125,59,0.25),0 0 0 3px rgba(11,125,59,0.2)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Cancelar e ações neutras. Nunca compete visualmente com o primário.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Cancelar</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;border-radius:10px;background:#E2E6ED;color:#22252C;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s ease}.ds-btn-secondary:hover{background:#D4D9E2}.ds-btn-secondary:active{transform:scale(0.98)}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(11,125,59,0.08)}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Confirmação destrutiva. Um por diálogo. Vermelho Erro com brilho vermelho.",
+      "html": "<button class=\"ds-btn-danger\" type=\"button\">Confirmar</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;border-radius:10px;background:#B3261E;color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(179,38,30,0.25);transition:all 0.2s ease}.ds-btn-danger:hover{background:#8C1D18;box-shadow:0 4px 12px rgba(179,38,30,0.35);transform:translateY(-1px)}.ds-btn-danger:active{transform:translateY(0)}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 2px 8px rgba(179,38,30,0.25),0 0 0 3px rgba(179,38,30,0.18)}"
+    },
+    {
+      "name": "Action Button",
+      "kind": "button",
+      "refersTo": "button-action",
+      "description": "Grade de utilidades (exportar, importar, textos padrão). Fundo branco com borda fina; hover preenche com verde lavado.",
+      "html": "<button class=\"ds-btn-action\" type=\"button\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/></svg>Exportar</button>",
+      "css": ".ds-btn-action{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border:1.5px solid #E2E6ED;border-radius:10px;background:#fff;color:#22252C;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.25s ease}.ds-btn-action svg{stroke:#5C6473;flex-shrink:0;transition:stroke 0.2s}.ds-btn-action:hover{background:rgba(11,125,59,0.08);border-color:#0B7D3B;color:#0B7D3B}.ds-btn-action:hover svg{stroke:#0B7D3B}.ds-btn-action:active{transform:scale(0.97)}.ds-btn-action:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(11,125,59,0.08)}"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Campo de formulário padrão. Borda 1.5px Linha Clara; foco vira Verde Ofício com anel lavado.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Protocolo</span><input class=\"ds-input\" type=\"text\" placeholder=\"000000000000\" /></label>",
+      "css": ".ds-field{display:block}.ds-field-label{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.2px;color:#5C6473;margin-bottom:6px}.ds-input{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #E2E6ED;border-radius:10px;background:#fff;color:#22252C;font-family:'DM Sans',sans-serif;font-size:13px;transition:border-color 0.25s,box-shadow 0.25s}.ds-input::placeholder{color:#A4AABC}.ds-input:hover{border-color:#D4D9E2}.ds-input:focus{outline:none;border-color:#0B7D3B;box-shadow:0 0 0 3px rgba(11,125,59,0.08)}.ds-input:read-only{background:#F5F7FA;color:#A4AABC}"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "chip-tag",
+      "description": "Pill de status. Fundo lavado + tinta da família de feedback. Quatro variantes: urgente, pendência, lembrete, concluído.",
+      "html": "<span class=\"ds-chip ds-chip-urgente\">Urgente<span class=\"ds-chip-x\">&times;</span></span><span class=\"ds-chip ds-chip-pendencia\">Pendência</span><span class=\"ds-chip ds-chip-lembrete\">Lembrete</span><span class=\"ds-chip ds-chip-concluido\">Concluído</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.1px;cursor:pointer;transition:all 0.15s ease}.ds-chip-x{font-size:13px;font-weight:400;opacity:0.6;margin-left:2px;transition:opacity 0.15s ease}.ds-chip:hover .ds-chip-x{opacity:1}.ds-chip-urgente{background:#FDE7E7;color:#B3261E}.ds-chip-urgente:hover{background:#F5B8B5}.ds-chip-pendencia{background:#FFF4DD;color:#C18516}.ds-chip-pendencia:hover{background:#F2D590}.ds-chip-lembrete{background:rgba(20,95,163,0.1);color:#145FA3}.ds-chip-lembrete:hover{background:rgba(20,95,163,0.18)}.ds-chip-concluido{background:#E3F3EB;color:#0B7D3B}.ds-chip-concluido:hover{background:#A8DCBA}"
+    },
+    {
+      "name": "Note Card",
+      "kind": "card",
+      "refersTo": "card-note",
+      "description": "Cartão da lista do popup. Plano em repouso; hover sobe 1px com sombra sutil. Abraça o papel da nota.",
+      "html": "<article class=\"ds-note-card\"><header class=\"ds-note-card-head\"><span class=\"ds-note-protocolo\">123456789012</span><span class=\"ds-note-actions\"><button type=\"button\" aria-label=\"Editar\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7\"/><path d=\"M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z\"/></svg></button></span></header><div class=\"ds-note-paper\">Aguardando envio de documentação complementar pelo interessado.</div><footer class=\"ds-note-date\">12/09/2026</footer></article>",
+      "css": ".ds-note-card{background:#fff;border:1px solid #D4D9E2;border-radius:12px;padding:12px 14px;transition:all 0.25s cubic-bezier(0.22,1,0.36,1)}.ds-note-card:hover{box-shadow:0 4px 16px rgba(34,37,44,0.1);border-color:rgba(11,125,59,0.2);transform:translateY(-1px)}.ds-note-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.ds-note-protocolo{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:13.5px;color:#0B7D3B;letter-spacing:-0.2px}.ds-note-actions{display:flex;gap:2px}.ds-note-actions button{background:transparent;border:none;cursor:pointer;padding:2px 4px;line-height:1;opacity:0.6;transition:opacity 0.2s,transform 0.1s}.ds-note-actions button:hover{opacity:1}.ds-note-actions button:active{transform:scale(0.92)}.ds-note-actions svg{stroke:#5C6473}.ds-note-paper{position:relative;background:#fff8c6;color:#1a1a1a;padding:10px 12px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;line-height:1.5;word-wrap:break-word;box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 2px 6px rgba(34,37,44,0.1)}.ds-note-paper::after{content:'';position:absolute;right:0;bottom:0;width:0;height:0;border-style:solid;border-width:0 0 14px 14px;border-color:transparent transparent #f3e58d transparent;border-radius:0 0 2px 0}.ds-note-date{font-family:'DM Sans',sans-serif;font-size:10px;color:#A4AABC;margin-top:8px;text-align:right;font-weight:500}"
+    },
+    {
+      "name": "Sticky Note Paper",
+      "kind": "custom",
+      "refersTo": "note-paper",
+      "description": "Componente assinatura: o papel do caderno. Dobra obrigatória no canto inferior direito. Seis cores de papel, nunca cor de marca.",
+      "html": "<div class=\"ds-paper-wrap\"><div class=\"ds-paper\" data-paper=\"amarelo\">Aguardando envio de documentação complementar pelo interessado.</div><div class=\"ds-paper\" data-paper=\"verde\">Ligar para o interessado.</div><div class=\"ds-paper\" data-paper=\"azul\">Processo em análise técnica.</div></div>",
+      "css": ".ds-paper-wrap{display:flex;flex-wrap:wrap;gap:12px}.ds-paper{position:relative;max-width:220px;padding:8px 10px;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.3;color:#1a1a1a;word-wrap:break-word;overflow-wrap:break-word;box-shadow:2px 2px 6px rgba(34,37,44,0.12);transition:transform 0.2s,box-shadow 0.2s;cursor:default}.ds-paper:hover{transform:translateY(-2px);box-shadow:3px 4px 10px rgba(34,37,44,0.12)}.ds-paper::after{content:'';position:absolute;right:0;bottom:0;width:0;height:0;border-left:12px solid transparent;border-top:12px solid transparent;border-right:0;border-radius:0 0 2px 0;pointer-events:none}.ds-paper[data-paper=\"amarelo\"]{background:#fff8c6}.ds-paper[data-paper=\"amarelo\"]::after{border-bottom:12px solid #f3e58d}.ds-paper[data-paper=\"verde\"]{background:#c6f8cf}.ds-paper[data-paper=\"verde\"]::after{border-bottom:12px solid #8de5a0}.ds-paper[data-paper=\"azul\"]{background:#c6e5f8}.ds-paper[data-paper=\"azul\"]::after{border-bottom:12px solid #8dc8f3}.ds-paper[data-paper=\"rosa\"]{background:#f8c6d4}.ds-paper[data-paper=\"rosa\"]::after{border-bottom:12px solid #f38da8}.ds-paper[data-paper=\"laranja\"]{background:#f8e0c6}.ds-paper[data-paper=\"laranja\"]::after{border-bottom:12px solid #f3c48d}.ds-paper[data-paper=\"roxo\"]{background:#e0c6f8}.ds-paper[data-paper=\"roxo\"]::after{border-bottom:12px solid #c48df3}"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "card-stat",
+      "description": "Cartão de estatística compacto. Valor em Bricolage 700 verde; rótulo em caixa alta esmaecida.",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-stat-value\">128</div><div class=\"ds-stat-label\">Notas</div></div>",
+      "css": ".ds-stat{background:#fff;border:1px solid #D4D9E2;border-radius:10px;padding:12px;text-align:center;transition:transform 0.2s ease,box-shadow 0.2s ease}.ds-stat:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(34,37,44,0.06)}.ds-stat-value{font-family:'Bricolage Grotesque',sans-serif;font-size:24px;font-weight:700;color:#0B7D3B;line-height:1}.ds-stat-label{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#A4AABC;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500}"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Aviso flutuante. Entra por slide, sai em fade após 2.7s. Ícone SVG inline + texto.",
+      "html": "<div class=\"ds-toast-stack\"><div class=\"ds-toast ds-toast-success\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><polyline points=\"22 4 12 14.01 9 11.01\"/></svg>Nota salva</div><div class=\"ds-toast ds-toast-warning\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>Espaço de sincronização quase cheio</div></div>",
+      "css": ".ds-toast-stack{display:flex;flex-direction:column;gap:8px;align-items:flex-end}.ds-toast{display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;max-width:300px;box-shadow:0 8px 24px rgba(34,37,44,0.14);animation:ds-toast-in 0.4s cubic-bezier(0.22,1,0.36,1) both}.ds-toast-success{background:#E3F3EB;color:#0B7D3B;border:1px solid #A8DCBA}.ds-toast-warning{background:#FFF4DD;color:#C18516;border:1px solid #F2D590}.ds-toast-error{background:#FDE7E7;color:#B3261E;border:1px solid #F5B8B5}@keyframes ds-toast-in{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Caderno do Protocolo",
+    "overview": "A NotasPat não é um app de produtividade genérico encaixado no portal do INSS — é um caderno de serventia aberto sobre a fila de tarefas. A página do portal é o formulário: reto, institucional, feito para ser lido em série. A nota adesiva é o papel colocado em cima dele: um material diferente, mais quente, mais tátil, que carrega a memória humana do que já se fez naquele protocolo. Todo o sistema visual existe para manter esses dois materiais distintos e legíveis um ao lado do outro.\n\nO tom é sério com calor de papel. A seriedade vem da identidade corporativa do INSS — verde institucional, azul de apoio, amarelo de sinalização, neutros limpos, densidade de formulário público. O calor vem só do papel: as seis cores pastel das notas, a dobra no canto, o texto que se lê como anotação. A ferramenta deve parecer algo que um servidor reconheceria como seu: confiável, sóbrio, sem performance de marketing — mas não fria, porque guarda o que uma pessoa escreveu.\n\nO chrome da interface se contém de propósito. Botões, campos, cartões e cabeçalhos são discretos, com borda fina e cor funcional. Isso não é timidez: é o que permite que a nota adesiva seja a coisa mais viva na tela. Se o chrome gritar junto, o caderno vira ruído. A expressão está nos detalhes precisos — o letter-spacing negativo dos títulos, o degradê verde só do cabeçalho, o letter-spacing maiúsculo dos rótulos — e nunca em ornamento.",
+    "keyCharacteristics": [
+      "Dois materiais separados e nunca misturados: chrome institucional e papel de anotação",
+      "Verde Ofício (#0B7D3B) como voz única da ferramenta; pastel reservado ao papel",
+      "Superfícies planas com borda de 1px; profundidade só como resposta a estado",
+      "Bricolage Grotesque nos títulos e números de protocolo; DM Sans no corpo e nos controles",
+      "Piso funcional de 11px — nunca se sacrifica legibilidade por densidade",
+      "Densidade de formulário público: informação compacta, hierarquia inequívoca, zero enfeite"
+    ],
+    "rules": [
+      {
+        "name": "The Two Materials Rule",
+        "body": "O chrome institucional e o papel de anotação são materiais diferentes e nunca se misturam. O pastel do post-it não vira cor de botão, de borda ou de fundo de painel; o verde de marca não vira fundo de nota. Quando uma superfície não é papel, ela usa a família neutra + verde de marca.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Voice Rule",
+        "body": "O Verde Ofício é a única cor de ação. Se dois elementos verdes competem pela mesma tela, um deles está errado. O azul informa, o amarelo sinaliza, o verde age.",
+        "section": "colors"
+      },
+      {
+        "name": "The Pastel Is Paper Rule",
+        "body": "As seis cores pastéis existem apenas como corpo de nota adesiva (fundo + dobra). Fora da nota, elas não aparecem.",
+        "section": "colors"
+      },
+      {
+        "name": "The 11px Floor Rule",
+        "body": "Nenhum texto funcional abaixo de 11px. Rótulos de data, versão e metadado podem ir a 10.5px apenas quando são apoio, nunca quando carregam a informação que o servidor precisa ler. Densidade não se compra com legibilidade.",
+        "section": "typography"
+      },
+      {
+        "name": "The Protocol Number Rule",
+        "body": "Todo número de protocolo é renderizado em Bricolage Grotesque 700, Verde Ofício, com letter-spacing negativo. É o índice do caderno — o olho precisa achá-lo antes de ler qualquer outra coisa na linha.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Em repouso, toda superfície de chrome é plana com borda de 1px. Se uma tela parece \"levantada\" antes de qualquer interação, ela está usando sombra errado.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Functional Shadow Rule",
+        "body": "Sombra só comunica uma dessas três coisas: isto respondeu (hover/foco), isto veio por cima (modal/toast), ou isto é papel (nota adesiva). Sombra decorativa é proibida.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Fold Rule",
+        "body": "A dobra do post-it é o único relevo decorativo permitido no sistema. Não há fita adesiva, rabisco, sombra de papel amassado, textura de grão, ilustração ou emoji gigante. O calor do papel vem da cor pastel e da dobra — nada mais.",
+        "section": "shapes"
+      },
+      {
+        "name": "The 10px Default Rule",
+        "body": "Se um componente não tem motivo documentado para outro raio, ele usa 10px. É o raio que dá a sensação de \"controle de formulário\" que unifica botão, campo e cartão.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do manter o Verde Ofício (#0B7D3B) como a única cor de ação da interface, e o amarelo/azul apenas informando ou sinalizando.",
+      "Do renderizar todo número de protocolo em Bricolage Grotesque 700, Verde Ofício, letter-spacing: -0.2px.",
+      "Do usar o raio de 10px como padrão de botão, campo e cartão, exceto nos casos documentados (6px papel, 8px chip, 12px cartão de nota/toast, 16px modal).",
+      "Do aplicar a dobra em toda nota adesiva, em qualquer tamanho e em qualquer superfície — é o que a torna papel.",
+      "Do manter superfícies de chrome planas em repouso, com borda de 1px e diferença de tom entre Cartão Branco e Névoa.",
+      "Do respeitar o piso de 11px em todo texto funcional, e 10.5px apenas em rótulo de apoio em caixa alta.",
+      "Do usar SVG inline com stroke: currentColor para todos os ícones, e empacotar fontes localmente (sem requisição de rede).",
+      "Do manter o mesmo sistema nos dois builds (Chrome e Firefox) — o DESIGN.md vale para os dois."
+    ],
+    "donts": [
+      "Don't usar as seis cores pastéis fora do corpo de uma nota adesiva — nem em botão, nem em borda, nem em fundo de painel.",
+      "Don't pintar fundo de nota com verde de marca, nem usar pastel como cor de ação.",
+      "Don't aplicar sombra decorativa em superfície em repouso. Se não é resposta a estado, modal/toast, ou papel, não leva sombra.",
+      "Don't construir visual de startup/SaaS: gradientes vibrantes em superfícies grandes, ilustrações 3D, glassmorphism, cartões flutuantes translúcidos, blobs.",
+      "Don't virar cinza genérico de sistema operacional: painéis sem hierarquia, tipografia do browser, cinza puro sem a temperatura do Grafite.",
+      "Don't fazer post-it infantil: fita adesiva, rabiscos, sombra de papel amassado, fonte manuscrita, emoji gigante como ícone, textura de grão.",
+      "Don't reduzir texto funcional abaixo de 11px para ganhar espaço. Comprima conteúdo, não legibilidade.",
+      "Don't redesenhar a tabela do PAT. A extensão se anexa à linha do protocolo e respeita o layout do portal — inclusive não quebrando o site.",
+      "Don't usar emoji como interface. Emoji pode existir no texto que o servidor escreve; a interface se comunica com SVG e tipografia."
+    ]
+  }
+}
