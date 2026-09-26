@@ -9,7 +9,7 @@
  *   3. Aba Console, cole este arquivo todo e de Enter
  *   Se pedir, digite "allow pasting" antes.
  *
- * Esperado: 17/17.
+ * Esperado: 18/18.
  *
  * Rode uma unica vez por sessao do popup.
  *
@@ -203,7 +203,24 @@ const NotasPatTest = {
   await deleteNote('666');
   const todas3 = await getAllNotes();
   NotasPatTest.assert('B13 nota excluida nao ressuscita', !todas3['666']);
-  console.log('[NotasPat][TESTE]     esperado no Bloco B: 13/13');
+
+  // Corrida: exclusao durante uma promocao ja em voo. getAllNotes() le
+  // "ainda existe em local, promove" e so DEPOIS (varios awaits: planSyncBatch,
+  // filterUnchangedLocalNotes, sync.set) e que grava no sync. Se o usuario
+  // excluir nesse meio-tempo, a nota nao pode ressuscitar no sync.
+  for (let i = 0; i < 5; i++) {
+    const k = `note_77${i}`, p = `77${i}`;
+    await new Promise(r => chrome.storage.sync.set({ [k]: { id: p, text: 'velha', updatedAt: '2020-01-01T00:00:00.000Z' } }, r));
+    await new Promise(r => chrome.storage.local.set({ [k]: { id: p, text: 'nova', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true } }, r));
+    getAllNotes(); // dispara a promocao, NAO espera (e a corrida que queremos)
+    await deleteNote(p); // usuario exclui enquanto a promocao esta em voo
+  }
+  await new Promise(r => setTimeout(r, 800)); // deixa qualquer promocao em voo terminar
+  const posCorrida = await new Promise(r => chrome.storage.sync.get(['note_770', 'note_771', 'note_772', 'note_773', 'note_774'], r));
+  const posCorridaLocal = await new Promise(r => chrome.storage.local.get(['note_770', 'note_771', 'note_772', 'note_773', 'note_774'], r));
+  const ressuscitou = Object.keys(posCorrida).some(k => !!posCorrida[k]) || Object.keys(posCorridaLocal).some(k => !!posCorridaLocal[k]);
+  NotasPatTest.assert('B14 nota excluida durante promocao em voo nao ressuscita', !ressuscitou);
+  console.log('[NotasPat][TESTE]     esperado no Bloco B: 14/14');
 
   // =========================================================
   // BLOCO C — Task 6: textos padrao + saude do storage
@@ -224,6 +241,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco C: 4/4');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 2 (total esperado: 17/17) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 2 (total esperado: 18/18) =====');
   console.log('[NotasPat][TESTE] Ao terminar as duas partes: NotasPatTest.restore(NotasPatTest._backup) se quiser os dados de volta.');
 })();
