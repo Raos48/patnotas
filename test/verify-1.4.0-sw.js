@@ -7,7 +7,7 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 29/29.
+ * Esperado: 30/30.
  *   - Se D1/D2/D3/D4/D5/D5b/D6/D6b/D7 falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
@@ -236,7 +236,26 @@ const NotasPatTest = {
   NotasPatTest.assert('A12 snapshot nao ganha a nota criada depois da 1a migracao',
     snap2.premigracao_1_4_0 && !snap2.premigracao_1_4_0.notas.note_snap2);
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco A: 12/12');
+  // Snapshot vencido (>30 dias) e removido e NUNCA recriado - so pode ser
+  // criado uma vez, na primeira migracao (flag premigracao_1_4_0_criado).
+  // Bug corrigido em revisao: a 1a versao recriava o snapshot toda vez que
+  // ele vencesse, se o usuario ainda tivesse QUALQUER nota em local - o que
+  // e permanente para quem tem notas presas em fallback (nunca cabem no
+  // sync). Isso e exatamente o crescimento sem fim que a expiracao deveria
+  // evitar.
+  await NotasPatTest.reset();
+  const quarentaDiasAtras = new Date(Date.now() - 40 * 86400000).toISOString();
+  await new Promise(r => chrome.storage.local.set({
+    premigracao_1_4_0: { quando: quarentaDiasAtras, notas: {}, standard_texts: [] },
+    premigracao_1_4_0_criado: true,
+    textosPadraoMigrados1_4_0: true,
+    note_velha_fallback: { id: 'velha_fallback', text: 'presa em fallback', updatedAt: '2020-01-01T00:00:00.000Z', _syncFallback: true }
+  }, r));
+  await migrateNotesToSync();
+  const snap3 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
+  NotasPatTest.assert('A13 snapshot vencido e removido e NAO recriado', !snap3.premigracao_1_4_0);
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco A: 13/13');
 
   // =========================================================
   // BLOCO D — Task 10: usuario existente nao perde dados (CRITICO)
@@ -358,8 +377,9 @@ const NotasPatTest = {
   // padrao nao pode apagar a copia local (bug corrigido em 0e8b4f7 - o
   // catch em volta da chamada nunca via a falha, porque essa funcao nunca
   // REJEITA, so RESOLVE com o limitType). Substitui a funcao globalmente
-  // (e uma const de topo, propriedade gravavel de self/globalThis) para
-  // forcar a falha de forma deterministica.
+  // (e uma DECLARACAO DE FUNCAO no topo do arquivo, propriedade gravavel
+  // de self/globalThis - diferente de uma const, que nao apareceria la)
+  // para forcar a falha de forma deterministica.
   await NotasPatTest.reset();
   const syncSetOriginal = syncSetComRetryDeRate;
   self.syncSetComRetryDeRate = async () => 'RATE';
@@ -456,6 +476,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 29/29) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 30/30) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
