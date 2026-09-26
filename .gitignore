@@ -28,6 +28,8 @@ build/
 # Backups
 bkp/
 
-# Documentation files (opted out except CLAUDE.md, which is versioned on purpose)
+# Documentation files (opted out except the ones versioned on purpose:
+# CLAUDE.md, and privacy.md in each build - it ships inside the release zip)
 *.md
 !CLAUDE.md
+!inss-notas-extensao-firefox/privacy.md

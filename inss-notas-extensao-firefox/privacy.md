@@ -5,13 +5,13 @@
 
 ## Resumo
 
-A extensão NotasPat respeita sua privacidade. Todos os dados ficam na sua própria conta Google (via sincronização nativa do Chrome) e nunca passam por servidores da extensão ou de terceiros.
+A extensão NotasPat respeita sua privacidade. Todos os dados ficam na sua própria Conta Firefox (via sincronização nativa do Firefox) e nunca passam por servidores da extensão ou de terceiros.
 
 ## Dados Coletados
 
 ### Dados Armazenados
 
-A extensão armazena as seguintes informações usando o armazenamento nativo do Chrome (`chrome.storage.sync`, com `chrome.storage.local` como reserva quando o limite de sincronização é atingido):
+A extensão armazena as seguintes informações usando o armazenamento nativo do Firefox (`browser.storage.sync`, com `browser.storage.local` como reserva quando o limite de sincronização é atingido):
 
 - **Notas**: Texto das notas que você cria
 - **Tags**: Categorias que você atribui às notas
@@ -32,10 +32,10 @@ A extensão **NÃO** coleta:
 
 ## Armazenamento e Sincronização
 
-Desde a versão 1.4.0, suas notas e textos padrão sincronizam entre os computadores onde você está com o Chrome conectado à mesma Conta Google (`chrome.storage.sync`), permitindo acessá-los em mais de um dispositivo.
+Desde a versão 1.4.0, suas notas e textos padrão sincronizam entre os computadores onde você está com o Firefox conectado à mesma Conta Firefox (`browser.storage.sync`), permitindo acessá-los em mais de um dispositivo.
 
-- Essa sincronização é feita pela infraestrutura do próprio Google, associada à sua Conta Google - a extensão não opera nem tem acesso a nenhum servidor próprio
-- Se o Chrome não estiver conectado a uma conta, ou a sincronização estiver desativada, os dados continuam salvos apenas neste computador
+- Essa sincronização é feita pela infraestrutura do próprio Firefox/Mozilla, associada à sua Conta Firefox - a extensão não opera nem tem acesso a nenhum servidor próprio
+- Se o Firefox não estiver conectado a uma conta, ou a sincronização estiver desativada, os dados continuam salvos apenas neste computador
 - Notas que excedem os limites técnicos de sincronização (100 KB no total, 8 KB por nota) ficam salvas apenas no computador onde foram criadas, até que haja espaço disponível
 - A extensão nunca envia dados para servidores próprios ou de terceiros - o único destino é a infraestrutura de sincronização do seu próprio navegador
 - Não são compartilhados com terceiros
@@ -45,7 +45,7 @@ Desde a versão 1.4.0, suas notas e textos padrão sincronizam entre os computad
 
 **Não compartilhamos seus dados com ninguém.**
 
-Seus dados nunca são vendidos, alugados ou compartilhados com terceiros para fins de marketing ou qualquer outro propósito. A extensão não opera servidor algum: o único lugar onde seus dados existem, além do seu computador, é a infraestrutura de sincronização da sua própria Conta Google.
+Seus dados nunca são vendidos, alugados ou compartilhados com terceiros para fins de marketing ou qualquer outro propósito. A extensão não opera servidor algum: o único lugar onde seus dados existem, além do seu computador, é a infraestrutura de sincronização da sua própria Conta Firefox.
 
 ## Exportação e Exclusão
 
@@ -84,4 +84,4 @@ Para dúvidas sobre privacidade: **ric2035843@gmail.com**
 
 ---
 
-*Esta política foi atualizada para cumprir com as políticas da Chrome Web Store.*
+*Esta política foi atualizada para cumprir com as políticas de extensões do Firefox (AMO).*

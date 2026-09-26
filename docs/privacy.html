@@ -205,26 +205,26 @@
     <div class="container">
         <header>
             <h1>Política de Privacidade</h1>
-            <p class="version">NotasPat v1.2.0</p>
-            <p class="updated">Última atualização: Fevereiro de 2026</p>
+            <p class="version">NotasPat v1.4.0</p>
+            <p class="updated">Última atualização: Setembro de 2026</p>
         </header>
 
         <div class="content">
             <div class="summary-box">
-                <p><strong>Resumo:</strong> A extensão NotasPat respeita sua privacidade. Todos os dados são armazenados localmente no seu navegador e não são transmitidos para servidores externos.</p>
+                <p><strong>Resumo:</strong> A extensão NotasPat respeita sua privacidade. Todos os dados ficam na sua própria conta Google/Firefox (via sincronização nativa do navegador) e nunca passam por servidores da extensão ou de terceiros.</p>
             </div>
 
             <h2>Dados Coletados</h2>
 
-            <h3>Dados Armazenados Localmente</h3>
-            <p>A extensão armazena as seguintes informações no seu navegador (usando <code>chrome.storage.local</code>):</p>
+            <h3>Dados Armazenados</h3>
+            <p>A extensão armazena as seguintes informações usando o armazenamento nativo do navegador (<code>chrome.storage.sync</code>/<code>browser.storage.sync</code>, com o armazenamento local como reserva quando o limite de sincronização é atingido):</p>
             <ul class="data-list">
                 <li><strong>Notas:</strong> Texto das notas que você cria</li>
                 <li><strong>Tags:</strong> Categorias que você atribui às notas</li>
                 <li><strong>Cores:</strong> Preferências de cor para cada nota</li>
                 <li><strong>Templates:</strong> Modelos de texto personalizados</li>
                 <li><strong>Lembretes:</strong> Data/hora de lembretes configurados</li>
-                <li><strong>Tema:</strong> Preferência de tema (claro/escuro)</li>
+                <li><strong>Tema:</strong> Preferência de tema (claro/escuro) - este item nunca sincroniza, é por computador</li>
             </ul>
 
             <h3>Dados NÃO Coletados</h3>
@@ -234,21 +234,23 @@
                 <li>Dados de navegação</li>
                 <li>Histórico de browsing</li>
                 <li>Localização</li>
-                <li>Nenhuma informação é enviada para servidores externos</li>
+                <li>Nenhuma informação é enviada para servidores da extensão ou de terceiros</li>
             </ul>
 
-            <h2>Armazenamento</h2>
-            <p>Todos os dados são armazenados <strong>exclusivamente</strong> no seu dispositivo, usando o armazenamento local do Chrome (<code>chrome.storage.local</code>).</p>
+            <h2>Armazenamento e Sincronização</h2>
+            <p>Desde a versão 1.4.0, suas notas e textos padrão sincronizam entre os computadores onde você está conectado à mesma conta (Google, no Chrome, ou Firefox), permitindo acessá-los em mais de um dispositivo.</p>
             <ul>
-                <li>Os dados ficam apenas no seu navegador</li>
-                <li>Não são sincronizados com servidores externos</li>
+                <li>Essa sincronização é feita pela infraestrutura do próprio navegador, associada à sua conta - a extensão não opera nem tem acesso a nenhum servidor próprio</li>
+                <li>Se o navegador não estiver conectado a uma conta, ou a sincronização estiver desativada, os dados continuam salvos apenas neste computador</li>
+                <li>Notas que excedem os limites técnicos de sincronização (100 KB no total, 8 KB por nota) ficam salvas apenas no computador onde foram criadas, até que haja espaço disponível</li>
+                <li>A extensão nunca envia dados para servidores próprios ou de terceiros - o único destino é a infraestrutura de sincronização do seu próprio navegador</li>
                 <li>Não são compartilhados com terceiros</li>
                 <li>Você pode exportar e excluir seus dados a qualquer momento</li>
             </ul>
 
             <h2>Compartilhamento de Dados</h2>
             <p><strong>Não compartilhamos seus dados com ninguém.</strong></p>
-            <p>Seus dados nunca são vendidos, alugados ou compartilhados com terceiros para fins de marketing ou qualquer outro propósito.</p>
+            <p>Seus dados nunca são vendidos, alugados ou compartilhados com terceiros para fins de marketing ou qualquer outro propósito. A extensão não opera servidor algum: o único lugar onde seus dados existem, além do seu computador, é a infraestrutura de sincronização da sua própria conta.</p>
 
             <h2>Exportação e Exclusão</h2>
 
@@ -265,14 +267,14 @@
             <ol style="margin-left: 25px; margin-bottom: 15px; color: #4b5563;">
                 <li>Clique no ícone da extensão</li>
                 <li>Exclua cada nota individualmente, ou</li>
-                <li>Desinstale a extensão (isso remove todos os dados)</li>
+                <li>Desinstale a extensão (isso remove os dados deste computador; se sincronizados, notas ainda podem existir em outros computadores conectados à mesma conta até serem excluídas lá também)</li>
             </ol>
 
             <h2>Segurança</h2>
             <ul>
-                <li>Os dados são armazenados localmente no seu navegador</li>
                 <li>Recomendamos fazer backup periódico usando a função "Exportar"</li>
                 <li>Notas podem conter informações sensíveis - mantenha seu arquivo de exportação em local seguro</li>
+                <li>Se suas notas tratam de casos de cidadãos atendidos, considere se a sincronização entre computadores é apropriada para o seu contexto de trabalho antes de habilitá-la</li>
                 <li>A extensão utiliza práticas de segurança para prevenir ataques XSS (Cross-Site Scripting)</li>
             </ul>
 
