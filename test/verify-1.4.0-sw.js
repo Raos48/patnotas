@@ -7,8 +7,8 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 26/26.
- *   - Se D1/D2/D3/D4/D5/D5b/D6 falharem, PARAR: ha risco de perda de dados.
+ * Esperado: 29/29.
+ *   - Se D1/D2/D3/D4/D5/D5b/D6/D6b/D7 falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
  *     passa true, para nao repetir o aviso a cada cold start do worker.
@@ -307,10 +307,13 @@ const NotasPatTest = {
   NotasPatTest.assert('D5b sync mantem sua versao anterior intacta (nao apagou pc1_grande)',
     (dSyncUniao.standard_texts || []).some(t => t.id === 'pc1_grande'));
 
-  // Texto excluido DEPOIS da migracao nao pode ressuscitar num cold start
-  // seguinte (bug que o gate textosPadraoMigrados1_4_0 existe para evitar:
-  // sem o gate, todo cold start remesclaria sync+local e traria de volta
-  // qualquer texto que o usuario ja tivesse excluido).
+  // Cenario que o gate textosPadraoMigrados1_4_0 existe para evitar: DEPOIS
+  // da migracao, local.standard_texts nao-vazio e o fallback normal do dia
+  // a dia (storage.js.writeStandardTexts salvou local porque a uniao atual
+  // nao coube no sync naquele momento) - NAO mais material bruto de dois
+  // PCs pre-migracao. Sync ainda guarda uma versao anterior que inclui um
+  // texto ('texto_b') que o usuario ja excluiu depois. Sem o gate, o merge
+  // rodaria de novo neste cold start e ressuscitaria texto_b.
   await NotasPatTest.reset();
   await migrateNotesToSync(); // 1a migracao: storage vazio, so seta a flag
   await new Promise(r => chrome.storage.sync.set({
@@ -319,17 +322,66 @@ const NotasPatTest = {
       { id: 'texto_b', title: 'B (sera excluido)', text: 'b'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
     ]
   }, r));
-  // Usuario exclui B: em storage.js isso e writeStandardTexts([A]) - so A
-  // fica no sync (ou em local se nao coubesse; aqui cabe tranquilo).
-  await new Promise(r => chrome.storage.sync.set({ standard_texts: [{ id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }] }, r));
-  await migrateNotesToSync(); // cold start seguinte
-  const dSyncPosExclusao = await new Promise(r => chrome.storage.sync.get(['standard_texts'], r));
-  const idsPosExclusao = (dSyncPosExclusao.standard_texts || []).map(t => t.id);
-  NotasPatTest.assert('D6 texto excluido apos a migracao nao ressuscita em cold starts seguintes',
-    idsPosExclusao.includes('texto_a') && !idsPosExclusao.includes('texto_b'));
+  await new Promise(r => chrome.storage.local.set({
+    standard_texts: [{ id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-03-01T00:00:00.000Z' }]
+  }, r));
+  await migrateNotesToSync(); // cold start seguinte, com o gate ja setado
+  const usados = await new Promise(r => chrome.storage.local.get(['standard_texts'], r));
+  const usadosSync = await new Promise(r => chrome.storage.sync.get(['standard_texts'], r));
+  // getStandardTexts prefere local quando nao-vazio (ver lib/storage.js) -
+  // e o que a UI de fato mostraria neste PC.
+  const idsUsados = ((usados.standard_texts && usados.standard_texts.length ? usados : usadosSync).standard_texts || []).map(t => t.id);
+  NotasPatTest.assert('D6 texto excluido apos a migracao NAO ressuscita (com o gate ativo)',
+    idsUsados.includes('texto_a') && !idsUsados.includes('texto_b'));
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco D: 7/7');
-  console.log('[NotasPat][TESTE]     *** SE D1/D2/D3/D4/D5/D5b/D6 FALHAREM, PARAR: ha risco de perda de dados ***');
+  // Controle negativo: desarma o gate de proposito e roda a MESMA sequencia
+  // - se D6 so passa por acaso (por nao testar nada), este controle nao
+  // detectaria a ressurreicao. Prova que o teste sabe reconhecer o bug.
+  await NotasPatTest.reset();
+  await migrateNotesToSync();
+  await new Promise(r => chrome.storage.sync.set({
+    standard_texts: [
+      { id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'texto_b', title: 'B (sera excluido)', text: 'b'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]
+  }, r));
+  await new Promise(r => chrome.storage.local.set({
+    standard_texts: [{ id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-03-01T00:00:00.000Z' }]
+  }, r));
+  await chrome.storage.local.remove('textosPadraoMigrados1_4_0'); // desarma de proposito
+  await migrateNotesToSync();
+  const usadosSemGate = await new Promise(r => chrome.storage.sync.get(['standard_texts'], r));
+  const idsSemGate = (usadosSemGate.standard_texts || []).map(t => t.id);
+  NotasPatTest.assertEquals('D6b controle: sem o gate, texto_b de fato ressuscita', idsSemGate.includes('texto_b'), true);
+
+  // D7: syncSetComRetryDeRate rejeitando (RATE) durante a mescla de textos
+  // padrao nao pode apagar a copia local (bug corrigido em 0e8b4f7 - o
+  // catch em volta da chamada nunca via a falha, porque essa funcao nunca
+  // REJEITA, so RESOLVE com o limitType). Substitui a funcao globalmente
+  // (e uma const de topo, propriedade gravavel de self/globalThis) para
+  // forcar a falha de forma deterministica.
+  await NotasPatTest.reset();
+  const syncSetOriginal = syncSetComRetryDeRate;
+  self.syncSetComRetryDeRate = async () => 'RATE';
+  NotasPatTest.assert('D7-pre substituicao de syncSetComRetryDeRate esta ativa', self.syncSetComRetryDeRate !== syncSetOriginal);
+  try {
+    await new Promise(r => chrome.storage.sync.set({
+      standard_texts: [{ id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    }, r));
+    await new Promise(r => chrome.storage.local.set({
+      standard_texts: [{ id: 'texto_c', title: 'C', text: 'c'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    }, r));
+    await migrateNotesToSync();
+    const localAposRate = await new Promise(r => chrome.storage.local.get(['standard_texts'], r));
+    const idsAposRate = (localAposRate.standard_texts || []).map(t => t.id);
+    NotasPatTest.assert('D7 RATE na gravacao dos textos NAO apaga a copia local (a uniao continua la)',
+      idsAposRate.includes('texto_a') && idsAposRate.includes('texto_c'));
+  } finally {
+    self.syncSetComRetryDeRate = syncSetOriginal;
+  }
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco D: 10/10');
+  console.log('[NotasPat][TESTE]     *** SE D1/D2/D3/D4/D5/D5b/D6/D6b/D7 FALHAREM, PARAR: ha risco de perda de dados ***');
 
   // =========================================================
   // BLOCO E — lembretes continuam funcionando apos a migracao
@@ -404,6 +456,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 26/26) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 29/29) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
