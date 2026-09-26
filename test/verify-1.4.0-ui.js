@@ -64,7 +64,9 @@ const NotasPatTest = {
     if (!this._backup) this._backup = await this.backup();
     await new Promise(r => chrome.storage.sync.clear(r));
     await new Promise(r => chrome.storage.local.clear(r));
-    this.results = [];
+    // Nao limpar this.results aqui: o report() do fim precisa enxergar todos
+    // os blocos, nao so o ultimo. Limpar fazia o resumo do fim mostrar "4/4"
+    // apos 17 asserts e, pior, sumiria com qualquer FALHOU anterior.
     console.log('[NotasPat][TESTE] Storage limpo (sync + local). Desfazer: NotasPatTest.restore(NotasPatTest._backup)');
   },
 
