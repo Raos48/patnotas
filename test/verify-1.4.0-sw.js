@@ -106,6 +106,30 @@ const NotasPatTest = {
 };
 
 (async function () {
+  // Guarda de contexto: no console errado (popup, pagina do portal)
+  // este arquivo falharia no meio do teste com ReferenceError.
+  const ctx = {
+    temWindow: typeof window !== 'undefined',
+    temMigracao: typeof migrateNotesToSync === 'function',
+    temSaveNote: typeof saveNote === 'function',
+    titulo: (typeof document !== 'undefined' && document && document.title) || '(sem document)'
+  };
+  if (!ctx.temMigracao) {
+    console.error('[NotasPat][TESTE] PARE - este console NAO e o do service worker. Nada foi alterado.');
+    console.error('[NotasPat][TESTE] Onde voce esta: ' + JSON.stringify(ctx));
+    if (ctx.temSaveNote) {
+      console.error('[NotasPat][TESTE] -> CONSOLE DO POPUP (tem saveNote, nao tem migrateNotesToSync).');
+    } else if (ctx.temWindow) {
+      console.error('[NotasPat][TESTE] -> Pagina sem background carregado.');
+    } else {
+      console.error('[NotasPat][TESTE] -> Contexto desconhecido.');
+    }
+    console.error('[NotasPat][TESTE] COMO ABRIR O CONSOLE CERTO:');
+    console.error('[NotasPat][TESTE]   chrome://extensions/ > card do NotasPat > link "service worker"');
+    console.error('[NotasPat][TESTE]   Teste de sanidade la dentro: typeof migrateNotesToSync === "function"');
+    return;
+  }
+
   console.log('[NotasPat][TESTE] ===== PARTE 1/2 (service worker) =====');
 
   // =========================================================

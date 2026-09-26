@@ -106,6 +106,34 @@ const NotasPatTest = {
 };
 
 (async function () {
+  // Guarda de contexto: rodar no console errado daria "saveNote is not
+  // defined" no meio do teste, depois de ja ter limpado o storage.
+  const ctx = {
+    temWindow: typeof window !== 'undefined',
+    temSaveNote: typeof saveNote === 'function',
+    temMigracao: typeof migrateNotesToSync === 'function',
+    titulo: (typeof document !== 'undefined' && document && document.title) || '(sem document)'
+  };
+  if (!ctx.temSaveNote) {
+    console.error('[NotasPat][TESTE] PARE - este console NAO e o do popup. Nada foi alterado.');
+    console.error('[NotasPat][TESTE] Onde voce esta: ' + JSON.stringify(ctx));
+    if (ctx.temMigracao) {
+      console.error('[NotasPat][TESTE] -> CONSOLE DO SERVICE WORKER (tem migrateNotesToSync, nao tem saveNote).');
+      console.error('[NotasPat][TESTE]    Provavelmente voce colou no console que ficou aberto da parte 1.');
+    } else if (!ctx.temWindow) {
+      console.error('[NotasPat][TESTE] -> Worker sem window, tambem nao serve.');
+    } else {
+      console.error('[NotasPat][TESTE] -> Pagina sem lib/storage.js (ex.: a pagina do portal).');
+    }
+    console.error('[NotasPat][TESTE] COMO ABRIR O CONSOLE CERTO:');
+    console.error('[NotasPat][TESTE]   1. NAO abra o popup clicando no icone e inspecione a pagina.');
+    console.error('[NotasPat][TESTE]   2. Botao DIREITO no icone do NotasPat na barra de extensoes');
+    console.error('[NotasPat][TESTE]   3. Clique em "Inspecionar popup" - abre um DevTools proprio do popup');
+    console.error('[NotasPat][TESTE]   4. Aba Console desse DevTools novo e cole de novo.');
+    console.error('[NotasPat][TESTE] Teste de sanidade la dentro: typeof saveNote === "function"');
+    return;
+  }
+
   console.log('[NotasPat][TESTE] ===== PARTE 2/2 (popup) =====');
 
   // =========================================================
