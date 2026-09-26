@@ -44,6 +44,22 @@
     return;
   }
 
+  // Guarda de dados reais: mesmo raciocinio de manual-harness.js. Este
+  // script tambem apaga TUDO antes de semear - se o perfil ja tiver notas
+  // reais (protocolo 5+ digitos numericos) ou textos padrao reais, para
+  // em vez de apagar. So imprime, nao restaura sozinho - o backup fica a
+  // cargo de quem roda, avisado aqui.
+  const antesDoSeed = await new Promise(r => chrome.storage.local.get(null, r));
+  const suspeitosLocal = Object.keys(antesDoSeed).filter(k => k.startsWith('note_') && /^\d{5,}$/.test(k.substring(5)));
+  const textosReais = Array.isArray(antesDoSeed.standard_texts) && antesDoSeed.standard_texts.length > 0;
+  if (suspeitosLocal.length > 0 || textosReais) {
+    console.error('[NotasPat][SEED] PARE - este perfil parece ter dados REAIS em local. NADA foi alterado.');
+    if (suspeitosLocal.length > 0) console.error('[NotasPat][SEED]   notas suspeitas: ' + suspeitosLocal.join(', '));
+    if (textosReais) console.error('[NotasPat][SEED]   textos padrao: ' + antesDoSeed.standard_texts.map(t => JSON.stringify(t.title)).join(', '));
+    console.error('[NotasPat][SEED] Faca backup manual (exportar pelo popup) antes de rodar este script num perfil com dados reais.');
+    return;
+  }
+
   console.log('[NotasPat][SEED] Limpando storage...');
   await new Promise(r => chrome.storage.sync.clear(r));
   await new Promise(r => chrome.storage.local.clear(r));

@@ -17,7 +17,35 @@
  * lib/storage.js, que carrega no popup e no content script, mas NAO no
  * service worker. A migracao em si foi testada no
  * test/verify-1.4.0-sw.js (console do service worker).
+ *
+ * GUARDA DE DADOS REAIS: reset() se RECUSA a limpar se encontrar qualquer
+ * nota cujo protocolo pareca um protocolo real do PAT (5+ digitos, todos
+ * numericos) ou standard_texts com titulo/id alem dos padroes de teste
+ * conhecidos. Um "Load Temporary Add-on" no Firefox NAO e sandbox
+ * descartavel - o manifest fixa gecko.id, entao esse carregamento
+ * compartilha o MESMO storage.sync (e, com Conta Firefox + sync de
+ * complementos ativado, o mesmo storage sincronizado entre computadores)
+ * que a extensao publicada usaria neste perfil.
  */
+function pareceDadoReal(local, sync) {
+  const suspeitos = [];
+  const verificar = (obj, origem) => {
+    if (!obj) return;
+    Object.keys(obj).forEach(chave => {
+      if (!chave.startsWith('note_')) return;
+      const protocolo = chave.substring('note_'.length);
+      if (/^\d{5,}$/.test(protocolo)) suspeitos.push(`${origem}.${chave} (parece protocolo real)`);
+    });
+    if (Array.isArray(obj.standard_texts) && obj.standard_texts.length > 0) {
+      const idsTeste = /^(st_1774|st_1790|texto_a_seed|pc1_|pc2_)/;
+      const temTextoNaoTeste = obj.standard_texts.some(t => !idsTeste.test(t.id || ''));
+      if (temTextoNaoTeste) suspeitos.push(`${origem}.standard_texts (titulo(s): ${obj.standard_texts.map(t => JSON.stringify(t.title)).join(', ')})`);
+    }
+  };
+  verificar(local, 'local');
+  verificar(sync, 'sync');
+  return suspeitos;
+}
 
 const NotasPatTest = {
   results: [],
@@ -60,8 +88,27 @@ const NotasPatTest = {
     return true;
   },
 
-  async reset() {
+  async reset(opcoes) {
+    const forcar = opcoes && opcoes.confirmoApagarDadosReais === true;
     if (!this._backup) this._backup = await this.backup();
+
+    if (this._resetCount === undefined) this._resetCount = 0;
+    if (this._resetCount === 0 && !forcar) {
+      const suspeitos = pareceDadoReal(this._backup.local, this._backup.sync);
+      if (suspeitos.length > 0) {
+        console.error('[NotasPat][TESTE] ==================================================');
+        console.error('[NotasPat][TESTE] PARE - reset() RECUSOU apagar: isto parece dado REAL,');
+        console.error('[NotasPat][TESTE] nao dado de teste. NADA foi alterado.');
+        console.error('[NotasPat][TESTE] Encontrado:');
+        suspeitos.forEach(s => console.error('[NotasPat][TESTE]   - ' + s));
+        console.error('[NotasPat][TESTE] Se voce tem CERTEZA de que quer apagar mesmo assim,');
+        console.error('[NotasPat][TESTE] rode: NotasPatTest.reset({ confirmoApagarDadosReais: true })');
+        console.error('[NotasPat][TESTE] ==================================================');
+        throw new Error('reset() recusado: storage parece conter dados reais (ver console)');
+      }
+    }
+    this._resetCount++;
+
     await new Promise(r => chrome.storage.sync.clear(r));
     await new Promise(r => chrome.storage.local.clear(r));
     // Nao limpar this.results aqui: o report() do fim precisa enxergar todos
