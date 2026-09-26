@@ -7,10 +7,14 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 14/14.
+ * Esperado: 15/15.
  *   - Se D1/D2/D3 falharem, PARAR: ha risco de perda de dados.
- *   - No Bloco A5 deve ter aparecido uma notificacao do NotasPat COM o
- *     icone verde. Sem icone = o caminho do icone ainda esta errado.
+ *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
+ *     (como o teste faz) usa notificar:false por padrao - so onInstalled
+ *     passa true, para nao repetir o aviso a cada cold start do worker.
+ *     O icone das notificacoes foi verificado manualmente antes (ver commit
+ *     6d3b55e); nao ha mais um jeito facil de forcar uma notificacao real
+ *     aqui sem tambem forcar um onInstalled.
  *
  * Rode uma unica vez por sessao do service worker.
  *
@@ -189,7 +193,20 @@ const NotasPatTest = {
   await migrateNotesToSync();
   const sync3 = await new Promise(r => chrome.storage.sync.get(['note_x'], r));
   NotasPatTest.assertEquals('A8 sync mais novo nao foi sobrescrito', sync3.note_x.text, 'sync novo');
-  console.log('[NotasPat][TESTE]     esperado no Bloco A: 8/8');
+
+  // Nota que ja estava em fallback (marcada de uma migracao anterior que nao
+  // coube) e agora cabe: a marca _syncFallback NAO pode vazar para o sync
+  // (bug encontrado em revisao - toda outra nota gravada no sync usa
+  // withoutSyncFallback antes; a migracao gravava a nota como leu, marca
+  // inclusive).
+  await NotasPatTest.reset();
+  await new Promise(r => chrome.storage.local.set({
+    note_y: { id: 'y', text: 'ja em fallback', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true }
+  }, r));
+  await migrateNotesToSync();
+  const sync4 = await new Promise(r => chrome.storage.sync.get(['note_y'], r));
+  NotasPatTest.assert('A9 marca _syncFallback nao vaza para o sync', sync4.note_y && sync4.note_y._syncFallback !== true);
+  console.log('[NotasPat][TESTE]     esperado no Bloco A: 9/9');
 
   // =========================================================
   // BLOCO D — Task 10: usuario existente nao perde dados (CRITICO)

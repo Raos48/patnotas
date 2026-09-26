@@ -184,7 +184,11 @@ const NotasPatTest = {
   const sobrouB = await new Promise(r => chrome.storage.local.get(['note_444'], r));
   NotasPatTest.assert('B10 copia local obsoleta foi limpa', !sobrouB.note_444);
 
-  // Auto-recuperacao do fallback
+  // Auto-recuperacao do fallback. Prova tambem que cancelPendingPromotion
+  // (chamada por todo saveNote, mesmo quando falha por quota) nao trava a
+  // chave para sempre: aqui o epoch da escrita falha precisa ficar "no
+  // passado" em relacao a leitura do getAllNotes 500ms+ depois, senao esta
+  // promocao legitima seria cancelada por engano.
   await NotasPatTest.reset();
   await NotasPatTest.fillSyncTo(100000);
   try { await saveNote('555', 'presa no local', '#fff8c6', []); } catch (e) { }
@@ -245,12 +249,16 @@ const NotasPatTest = {
     });
   };
   try {
+    // note_881 comeca so em sync com 'velha': se a promocao gravar por cima
+    // (sem a protecao), o texto no sync vira 'nova' - prova inequivoca de
+    // que a promocao rodou depois do delete e ganhou a corrida.
     await new Promise(r => chrome.storage.sync.set({ note_881: { id: '881', text: 'velha', updatedAt: '2020-01-01T00:00:00.000Z' } }, r));
     await new Promise(r => chrome.storage.local.set({ note_881: { id: '881', text: 'nova', updatedAt: '2030-01-01T00:00:00.000Z', _syncFallback: true } }, r));
     await getAllNotes();
     await new Promise(r => setTimeout(r, 500));
     const semProtecao = await new Promise(r => chrome.storage.sync.get(['note_881'], r));
-    NotasPatTest.assert('B15 controle: sem a protecao, a nota de fato ressuscitaria', !!semProtecao.note_881);
+    NotasPatTest.assertEquals('B15 controle: sem a protecao, a promocao de fato ganha a corrida',
+      semProtecao.note_881 && semProtecao.note_881.text, 'nova');
   } finally {
     window.filterUnchangedLocalNotes = filtroOriginal;
   }
