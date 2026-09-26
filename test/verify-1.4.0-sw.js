@@ -7,7 +7,7 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 30/30.
+ * Esperado: 33/33.
  *   - Se D1/D2/D3/D4/D5/D5b/D6/D6b/D7 falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
@@ -255,7 +255,21 @@ const NotasPatTest = {
   const snap3 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
   NotasPatTest.assert('A13 snapshot vencido e removido e NAO recriado', !snap3.premigracao_1_4_0);
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco A: 13/13');
+  // Uma nota grande o bastante faria o snapshot (que copia local inteiro)
+  // arriscar o teto de 10 MB do proprio storage.local do Chrome - o
+  // snapshot tem que ser pulado nesse caso (bug corrigido em revisao: a
+  // 1a versao nao tinha limite de tamanho nenhum).
+  await NotasPatTest.reset();
+  await new Promise(r => chrome.storage.local.set({
+    note_grande: { id: 'grande', text: 'x'.repeat(3.5 * 1024 * 1024), updatedAt: '2030-01-01T00:00:00.000Z' }
+  }, r));
+  await migrateNotesToSync();
+  const snap4 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0', 'premigracao_1_4_0_criado', 'note_grande'], r));
+  NotasPatTest.assert('A14 snapshot muito grande e pulado (nao arrisca o teto de 10MB)', !snap4.premigracao_1_4_0);
+  NotasPatTest.assert('A14b flag de criacao marcada mesmo pulando (nunca mais tenta)', snap4.premigracao_1_4_0_criado === true);
+  NotasPatTest.assert('A14c a nota grande em si nao foi tocada/perdida', !!snap4.note_grande);
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco A: 16/16');
 
   // =========================================================
   // BLOCO D — Task 10: usuario existente nao perde dados (CRITICO)
@@ -476,6 +490,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 30/30) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 33/33) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
