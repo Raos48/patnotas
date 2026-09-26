@@ -36,8 +36,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Migrar formato antigo (notes: {}) para granular (note_<protocolo>)
   await migrateToGranularStorage();
 
-  // Migrar notas/textos de local para sync (sincronizacao entre computadores)
-  await migrateNotesToSync();
+  // Migrar notas/textos de local para sync (sincronizacao entre computadores).
+  // notificar:true so aqui - install/update acontece uma vez; sem essa
+  // distincao o aviso de "notas nao couberam" reapareceria a cada cold
+  // start do service worker (MV3 recicla o worker com frequencia).
+  await migrateNotesToSync({ notificar: true });
 
   // Reconfigurar todos os alarmes (apenas na instalação/atualização)
   await setupReminders();
@@ -103,7 +106,14 @@ async function migrateToGranularStorage() {
  * Ordena por updatedAt desc: se nem tudo couber, o que sincroniza e o
  * trabalho mais recente, nao uma fatia arbitraria.
  */
-async function migrateNotesToSync() {
+/**
+ * @param {{notificar?: boolean}} opcoes - notificar: so onInstalled deve
+ *   avisar o usuario. Esta funcao roda de novo a cada cold start do service
+ *   worker (MV3 recicla o worker com frequencia); sem essa distincao, um
+ *   usuario com notas em fallback veria o mesmo aviso repetidas vezes ao
+ *   longo do dia, mesmo sem nada de novo ter acontecido.
+ */
+async function migrateNotesToSync({ notificar = false } = {}) {
   let migradas = 0;
   let naoMigradas = 0;
 
@@ -129,23 +139,38 @@ async function migrateNotesToSync() {
         continue;
       }
 
-      const check = await checkQuotaBeforeWrite(key, nota);
+      // Nota que ja estava em fallback (nao coube antes) e agora cabe: NUNCA
+      // gravar _syncFallback no sync. background.js nao carrega lib/storage.js
+      // (so lib/quota.js via importScripts), entao a limpeza e feita aqui
+      // mesmo - a mesma invariante que withoutSyncFallback protege la.
+      const jaEstavaEmFallback = nota._syncFallback === true;
+      const paraGravar = jaEstavaEmFallback
+        ? (() => { const c = Object.assign({}, nota); delete c._syncFallback; return c; })()
+        : nota;
+
+      const check = await checkQuotaBeforeWrite(key, paraGravar);
       if (!check.ok) {
-        await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+        // So regrava local se ainda nao estiver marcada - repetir o mesmo
+        // set a cada cold start dispararia storage.onChanged sem necessidade.
+        if (!jaEstavaEmFallback) {
+          await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+        }
         naoMigradas++;
         continue;
       }
 
       try {
-        await chrome.storage.sync.set({ [key]: nota });              // 1. grava
+        await chrome.storage.sync.set({ [key]: paraGravar });          // 1. grava
         const confirmado = await chrome.storage.sync.get([key]);      // 2. confirma
         if (!confirmado[key]) throw new Error('gravacao nao confirmada');
         await chrome.storage.local.remove(key);                       // 3. so entao remove
-        sync[key] = nota; // mantem o espelho para as iteracoes seguintes
+        sync[key] = paraGravar; // mantem o espelho para as iteracoes seguintes
         migradas++;
       } catch (e) {
         // Falhou a gravacao: a nota FICA no local, intacta
-        await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+        if (!jaEstavaEmFallback) {
+          await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+        }
         naoMigradas++;
       }
     }
@@ -171,7 +196,7 @@ async function migrateNotesToSync() {
 
     console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente`);
 
-    if (naoMigradas > 0) {
+    if (notificar && naoMigradas > 0) {
       criarNotificacao('notaspat_migracao', {
         type: 'basic',
         title: 'NotasPat - Sincronizacao',
