@@ -10,9 +10,14 @@
  *
  * O QUE FAZ:
  *   1. Limpa sync + local (chrome.storage.sync.clear/local.clear)
- *   2. Grava 150 notas com protocolos fixos 90000000000-90000000149
+ *   2. Grava 150 notas com protocolos fixos de 12 digitos,
+ *      900000000000-900000000149 (prefixo '9000000000' de 10 digitos +
+ *      i com padStart(2) - de proposito nao redondo/nao obvio, para nao
+ *      colidir por acidente com protocolo real; o codigo de producao nao
+ *      limita quantidade de digitos, entao o teste nao precisa "parecer"
+ *      um protocolo real de 11)
  *      diretamente no formato local (como a 1.3.7 gravaria de verdade)
- *   3. A primeira delas (90000000000) recebe um lembrete 24h a frente
+ *   3. A primeira delas (900000000000) recebe um lembrete 24h a frente
  *   4. Grava um texto padrao 'A' DIRETO NO SYNC (id fixo texto_a_seed),
  *      simulando um segundo computador que ja teria atualizado e subido
  *      o proprio texto - e exatamente o cenario que o merge de textos
@@ -39,7 +44,7 @@
   await new Promise(r => chrome.storage.sync.clear(r));
   await new Promise(r => chrome.storage.local.clear(r));
 
-  console.log('[NotasPat][SEED] Gravando 150 notas (protocolos 90000000000-90000000149)...');
+  console.log('[NotasPat][SEED] Gravando 150 notas (protocolos 900000000000-900000000149)...');
   const notas = {};
   for (let i = 0; i < 150; i++) {
     const protocolo = '9000000000' + String(i).padStart(2, '0');
