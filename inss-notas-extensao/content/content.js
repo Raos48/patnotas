@@ -999,16 +999,23 @@ async function syncTheme() {
   }
 }
 
-// Listen for storage changes (theme + standard texts cache)
+// Listen for storage changes (theme + standard texts cache).
+// theme so existe em local (nunca migra para sync - preferencia por
+// computador, nao dado do usuario a sincronizar), entao o filtro
+// namespace === 'local' e correto para ele. standard_texts, depois da
+// migracao, normalmente mora no sync - o filtro 'local' fazia essa
+// invalidacao nunca disparar para uma edicao feita neste mesmo computador
+// (some no cache logico, mas loadStdTextsCache sempre relê do storage de
+// qualquer jeito, entao isto nunca teve efeito pratico observavel; ainda
+// assim corrigido para nao confundir uma futura otimizacao que volte a
+// usar o valor cacheado).
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local') {
-    if (changes.theme) {
-      isDarkTheme = changes.theme.newValue === 'dark';
-      document.body.classList.toggle('inss-dark-theme', isDarkTheme);
-    }
-    if (changes.standard_texts) {
-      stdTextsCache = null; // Invalidate cache
-    }
+  if (namespace === 'local' && changes.theme) {
+    isDarkTheme = changes.theme.newValue === 'dark';
+    document.body.classList.toggle('inss-dark-theme', isDarkTheme);
+  }
+  if ((namespace === 'sync' || namespace === 'local') && changes.standard_texts) {
+    stdTextsCache = null; // Invalidate cache
   }
 });
 
