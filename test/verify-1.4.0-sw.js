@@ -7,8 +7,8 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 24/24.
- *   - Se D1/D2/D3/D4/D5/D5b falharem, PARAR: ha risco de perda de dados.
+ * Esperado: 26/26.
+ *   - Se D1/D2/D3/D4/D5/D5b/D6 falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
  *     passa true, para nao repetir o aviso a cada cold start do worker.
@@ -222,12 +222,21 @@ const NotasPatTest = {
   const snap1 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
   NotasPatTest.assert('A10 snapshot pre-migracao existe e guarda a nota original',
     snap1.premigracao_1_4_0 && snap1.premigracao_1_4_0.notas && !!snap1.premigracao_1_4_0.notas.note_snap);
-  await migrateNotesToSync(); // 2a passada nao deve mexer no snapshot
-  const snap2 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
-  NotasPatTest.assertEquals('A11 snapshot nao e sobrescrito por uma 2a migracao',
-    snap2.premigracao_1_4_0 && snap2.premigracao_1_4_0.quando, snap1.premigracao_1_4_0.quando);
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco A: 11/11');
+  // 2a passada com uma nota NOVA desde a 1a: prova que o snapshot nao e
+  // sobrescrito (nem para incluir a nota nova) - se fosse, o snapshot
+  // deixaria de representar fielmente o estado ANTES da 1a migracao.
+  await new Promise(r => chrome.storage.local.set({
+    note_snap2: { id: 'snap2', text: 'depois da 1a migracao', updatedAt: '2030-02-01T00:00:00.000Z' }
+  }, r));
+  await migrateNotesToSync();
+  const snap2 = await new Promise(r => chrome.storage.local.get(['premigracao_1_4_0'], r));
+  NotasPatTest.assertEquals('A11 snapshot nao e sobrescrito por uma 2a migracao (mesmo "quando")',
+    snap2.premigracao_1_4_0 && snap2.premigracao_1_4_0.quando, snap1.premigracao_1_4_0.quando);
+  NotasPatTest.assert('A12 snapshot nao ganha a nota criada depois da 1a migracao',
+    snap2.premigracao_1_4_0 && !snap2.premigracao_1_4_0.notas.note_snap2);
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco A: 12/12');
 
   // =========================================================
   // BLOCO D — Task 10: usuario existente nao perde dados (CRITICO)
@@ -260,6 +269,11 @@ const NotasPatTest = {
   // sync do outro ainda): o PRIMEIRO a atualizar sobe os seus. O SEGUNDO,
   // ao atualizar, tem que mesclar com o que ja esta no sync - nao descartar
   // os proprios so porque "ja existe algo la" (bug encontrado em revisao).
+  // reset() e obrigatorio aqui: o merge so roda na PRIMEIRA migracao (flag
+  // textosPadraoMigrados1_4_0) - sem reset(), a chamada de D1/D2/D3 acima
+  // ja teria consumido essa unica chance e D4 falharia por um motivo
+  // errado (nao por o merge estar quebrado, so por ja ter rodado antes).
+  await NotasPatTest.reset();
   await new Promise(r => chrome.storage.sync.set({
     standard_texts: [{ id: 'pc1_texto', title: 'Do PC 1', text: 'y'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
   }, r));
@@ -293,8 +307,29 @@ const NotasPatTest = {
   NotasPatTest.assert('D5b sync mantem sua versao anterior intacta (nao apagou pc1_grande)',
     (dSyncUniao.standard_texts || []).some(t => t.id === 'pc1_grande'));
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco D: 6/6');
-  console.log('[NotasPat][TESTE]     *** SE D1/D2/D3/D4/D5/D5b FALHAREM, PARAR: ha risco de perda de dados ***');
+  // Texto excluido DEPOIS da migracao nao pode ressuscitar num cold start
+  // seguinte (bug que o gate textosPadraoMigrados1_4_0 existe para evitar:
+  // sem o gate, todo cold start remesclaria sync+local e traria de volta
+  // qualquer texto que o usuario ja tivesse excluido).
+  await NotasPatTest.reset();
+  await migrateNotesToSync(); // 1a migracao: storage vazio, so seta a flag
+  await new Promise(r => chrome.storage.sync.set({
+    standard_texts: [
+      { id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'texto_b', title: 'B (sera excluido)', text: 'b'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]
+  }, r));
+  // Usuario exclui B: em storage.js isso e writeStandardTexts([A]) - so A
+  // fica no sync (ou em local se nao coubesse; aqui cabe tranquilo).
+  await new Promise(r => chrome.storage.sync.set({ standard_texts: [{ id: 'texto_a', title: 'A', text: 'a'.repeat(40), createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }] }, r));
+  await migrateNotesToSync(); // cold start seguinte
+  const dSyncPosExclusao = await new Promise(r => chrome.storage.sync.get(['standard_texts'], r));
+  const idsPosExclusao = (dSyncPosExclusao.standard_texts || []).map(t => t.id);
+  NotasPatTest.assert('D6 texto excluido apos a migracao nao ressuscita em cold starts seguintes',
+    idsPosExclusao.includes('texto_a') && !idsPosExclusao.includes('texto_b'));
+
+  console.log('[NotasPat][TESTE]     esperado no Bloco D: 7/7');
+  console.log('[NotasPat][TESTE]     *** SE D1/D2/D3/D4/D5/D5b/D6 FALHAREM, PARAR: ha risco de perda de dados ***');
 
   // =========================================================
   // BLOCO E — lembretes continuam funcionando apos a migracao
@@ -369,6 +404,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 24/24) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 26/26) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
