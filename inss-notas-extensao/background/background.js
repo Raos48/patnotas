@@ -172,9 +172,8 @@ async function migrateNotesToSync() {
     console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente`);
 
     if (naoMigradas > 0) {
-      chrome.notifications.create('notaspat_migracao', {
+      criarNotificacao('notaspat_migracao', {
         type: 'basic',
-        iconUrl: 'icons/icon128.png',
         title: 'NotasPat - Sincronizacao',
         message: `${migradas} notas agora sincronizam entre computadores. ${naoMigradas} nao couberam e seguem salvas apenas neste computador - exclua notas antigas para sincroniza-las.`,
         priority: 2
@@ -188,6 +187,41 @@ async function migrateNotesToSync() {
 }
 
 // ============ HELPERS ============
+
+/**
+ * Cria uma notificacao de forma tolerante a falhas.
+ *
+ * O iconUrl precisa ser absoluto: no service worker um caminho relativo
+ * resolve a partir de /background/ (entao "icons/icon128.png" vira
+ * /background/icons/icon128.png, que nao existe). Com o icone ausente o
+ * Chrome REJEITA a notificacao inteira - lembretes simplesmente nao
+ * apareciam - e a promise rejeitada escapava como "Uncaught (in promise)".
+ */
+function criarNotificacao(id, opcoes) {
+  const opcoesComIcone = Object.assign({}, opcoes, {
+    iconUrl: chrome.runtime.getURL('icons/icon128.png')
+  });
+  // Promise.resolve cobre tanto a API que devolve promise (Chrome MV3 /
+  // Firefox) quanto a que devolve undefined
+  Promise.resolve(chrome.notifications.create(id, opcoesComIcone)).catch((e) => {
+    console.warn('[NotasPat] Nao foi possivel exibir notificacao:', e);
+  });
+}
+
+/**
+ * Grava a nota no sync e so entao limpa o local. Se o sync nao aceitar,
+ * a nota continua em local marcada como fallback - nunca e descartada.
+ */
+async function gravarNotaComFallback(key, nota) {
+  const paraSync = Object.assign({}, nota);
+  delete paraSync._syncFallback;
+  try {
+    await chrome.storage.sync.set({ [key]: paraSync });
+    await chrome.storage.local.remove(key);
+  } catch (e) {
+    await chrome.storage.local.set({ [key]: Object.assign({}, nota, { _syncFallback: true }) });
+  }
+}
 
 /**
  * Coleta todas as notas do storage granular, dos DOIS namespaces.
@@ -261,9 +295,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
     if (nota) {
       // Mostrar notificação
-      chrome.notifications.create(`notification_${protocolo}`, {
+      criarNotificacao(`notification_${protocolo}`, {
         type: 'basic',
-        iconUrl: 'icons/icon128.png',
         title: '📝 Lembrete - NotasPat',
         message: `Protocolo ${protocolo}: ${nota.text.substring(0, 100)}${nota.text.length > 100 ? '...' : ''}`,
         priority: 2
@@ -271,12 +304,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
       // Limpar lembrete da nota (escrita individual)
       nota.reminder = null;
-      try {
-        await chrome.storage.sync.set({ [NOTE_PREFIX + protocolo]: nota });
-        await chrome.storage.local.remove(NOTE_PREFIX + protocolo);
-      } catch (e) {
-        await chrome.storage.local.set({ [NOTE_PREFIX + protocolo]: nota });
-      }
+      await gravarNotaComFallback(NOTE_PREFIX + protocolo, nota);
     }
   } catch (error) {
     console.error('[NotasPat] Erro ao processar lembrete:', error);
@@ -407,19 +435,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 async function setReminderForNote(protocolo, reminderDate) {
   const key = NOTE_PREFIX + protocolo;
-  const result = await chrome.storage.local.get([key]);
-  const nota = result[key];
+  // Le dos DOIS namespaces: depois da migracao para sync a nota costuma
+  // existir so no sync, e uma leitura apenas de local nao acharia nada -
+  // o lembrete seria engolido em silencio.
+  const nota = await getNoteFromStorage(protocolo);
 
   if (nota) {
     nota.reminder = reminderDate;
     nota.updatedAt = new Date().toISOString();
 
-    try {
-      await chrome.storage.sync.set({ [key]: nota });
-      await chrome.storage.local.remove(key);
-    } catch (e) {
-      await chrome.storage.local.set({ [key]: nota });
-    }
+    await gravarNotaComFallback(key, nota);
 
     // Criar/remover alarme
     const alarmName = `${ALARM_PREFIX}${protocolo}`;
