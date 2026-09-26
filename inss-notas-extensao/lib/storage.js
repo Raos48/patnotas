@@ -84,6 +84,11 @@ function readNotesFromArea(area, keys) {
 // Chaves com promocao ao sync em andamento neste contexto: leituras seguidas
 // (ex.: popup lista as notas e logo checa a saude) nao gravam a mesma nota duas vezes
 const promotionsInFlight = new Set();
+// Chaves cuja promocao em andamento deve ser abortada antes de gravar no
+// sync: o usuario excluiu (ou reeditou) a nota depois que a promocao ja
+// tinha lido "local" e decidido promover, mas antes do sync.set concluir.
+// Sem isso a nota excluida podia ressuscitar no sync (ver writeSyncBatch).
+const promotionsCancelled = new Set();
 
 /**
  * Das notas planejadas para promocao, mantem so as que continuam em local
@@ -260,12 +265,25 @@ function syncSetWithRateRetry(items) {
 /**
  * Grava notas no sync e, so depois de confirmado, remove as copias locais
  * (fallbacks antigos) dessas chaves.
+ *
+ * Reconfere promotionsCancelled IMEDIATAMENTE ANTES do sync.set (nao so no
+ * inicio da reconciliacao): entre a leitura que decidiu promover e este
+ * ponto ha varios awaits (planSyncBatch, filterUnchangedLocalNotes) onde o
+ * usuario pode ter excluido a nota. Gravar mesmo assim a traria de volta.
  * @param {Object} entries - { chave: nota } ja sem _syncFallback
  * @returns {Promise<null|string>} null se gravou; senao o limitType do erro
  */
 function writeSyncBatch(entries) {
-  const chaves = Object.keys(entries);
+  let chaves = Object.keys(entries);
   if (chaves.length === 0) return Promise.resolve(null);
+
+  const canceladas = chaves.filter(c => promotionsCancelled.has(c));
+  if (canceladas.length > 0) {
+    canceladas.forEach(c => { delete entries[c]; promotionsCancelled.delete(c); });
+    chaves = Object.keys(entries);
+    console.log('[NotasPat] Promocao cancelada (nota excluida/alterada durante a leitura):', canceladas.length);
+    if (chaves.length === 0) return Promise.resolve(null);
+  }
 
   return syncSetWithRateRetry(entries).then(limitType => {
     if (limitType) {
@@ -462,6 +480,15 @@ function updateExistingNote(protocolo, changes) {
  * @returns {Promise<void>} rejeita se qualquer namespace falhar
  */
 function removeFromBothAreas(keys) {
+  // Marca ANTES de remover: se houver uma promocao em voo para uma destas
+  // chaves (getAllNotes rodando em paralelo), o proximo writeSyncBatch dela
+  // ve a chave cancelada e nao grava - a exclusao nao pode perder a corrida.
+  const listaChaves = Array.isArray(keys) ? keys : [keys];
+  listaChaves.forEach(c => promotionsCancelled.add(c));
+  // Se nao havia promocao em voo, ninguem consome a marca: limpa sozinha
+  // para nao acumular chaves para sempre num set em memoria.
+  setTimeout(() => listaChaves.forEach(c => promotionsCancelled.delete(c)), 5000);
+
   const remover = area => new Promise((resolve, reject) => {
     chrome.storage[area].remove(keys, () => {
       if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
