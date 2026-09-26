@@ -37,10 +37,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   await migrateToGranularStorage();
 
   // Migrar notas/textos de local para sync (sincronizacao entre computadores).
-  // notificar:true so aqui - install/update acontece uma vez; sem essa
-  // distincao o aviso de "notas nao couberam" reapareceria a cada cold
-  // start do service worker (MV3 recicla o worker com frequencia).
-  await migrateNotesToSync({ notificar: true });
+  // notificar so em install/update (nao em chrome_update/shared_module_update,
+  // que tambem disparam onInstalled a cada atualizacao do proprio Chrome,
+  // por volta de uma vez por mes): sem essa distincao o aviso de "notas nao
+  // couberam" reapareceria nessas ocasioes tambem, alem de a cada cold start
+  // do service worker se nao fosse pelo notificar:false la (MV3 recicla o
+  // worker com frequencia).
+  const ehInstallOuUpdate = details.reason === 'install' || details.reason === 'update';
+  await migrateNotesToSync({ notificar: ehInstallOuUpdate });
 
   // Reconfigurar todos os alarmes (apenas na instalação/atualização)
   await setupReminders();
@@ -197,10 +201,15 @@ async function migrateNotesToSync({ notificar = false } = {}) {
     console.log(`[NotasPat] Migracao para sync: ${migradas} migradas, ${naoMigradas} mantidas localmente`);
 
     if (notificar && naoMigradas > 0) {
+      // Se o cold-start ja tinha migrado tudo que cabia antes deste
+      // onInstalled rodar, migradas pode ser 0 aqui - "0 notas agora
+      // sincronizam" seria enganoso, entao essa frase so aparece quando
+      // migradas > 0.
+      const linhaMigradas = migradas > 0 ? `${migradas} notas agora sincronizam entre computadores. ` : '';
       criarNotificacao('notaspat_migracao', {
         type: 'basic',
         title: 'NotasPat - Sincronizacao',
-        message: `${migradas} notas agora sincronizam entre computadores. ${naoMigradas} nao couberam e seguem salvas apenas neste computador - exclua notas antigas para sincroniza-las.`,
+        message: `${linhaMigradas}${naoMigradas} nao couberam e seguem salvas apenas neste computador - exclua notas antigas para sincroniza-las.`,
         priority: 2
       });
     }
