@@ -161,21 +161,35 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
       // sempre em qualquer usuario que continue com notas em local (quem
       // tem notas em fallback permanente, por nao caber no sync, sempre vai
       // ter algo em local) - o oposto do que a expiracao deveria evitar.
-      const jaCriouSnapshot = await chrome.storage.local.get([`${chavePreMigracao}_criado`]);
-      if (!jaCriouSnapshot[`${chavePreMigracao}_criado`]) {
+      const chaveCriado = `${chavePreMigracao}_criado`;
+      const jaCriouSnapshot = await chrome.storage.local.get([chaveCriado]);
+      if (!jaCriouSnapshot[chaveCriado]) {
         if (chavesNota.length > 0 || (local.standard_texts && local.standard_texts.length > 0)) {
           const notasParaSnapshot = {};
           chavesNota.forEach(k => { notasParaSnapshot[k] = local[k]; });
-          await chrome.storage.local.set({
-            [chavePreMigracao]: {
-              quando: new Date().toISOString(),
-              notas: notasParaSnapshot,
-              standard_texts: local.standard_texts || []
-            }
-          });
+          const snapshot = {
+            quando: new Date().toISOString(),
+            notas: notasParaSnapshot,
+            standard_texts: local.standard_texts || []
+          };
+          // Limite de tamanho: um usuario com milhares de notas presas em
+          // fallback (nao cabem no sync) teria a maioria delas em local -
+          // o snapshot dobraria esse uso. Perto do teto de 10 MB do Chrome
+          // (sem unlimitedStorage no manifest), gravar o snapshot deixaria
+          // pouco espaco sobrando, e as PROXIMAS gravacoes normais de
+          // fallback comecariam a falhar ("Erro ao salvar nota") ate o
+          // snapshot expirar, 30 dias depois. Pula a copia (mas marca como
+          // criado mesmo assim) quando isso e um risco real.
+          const tamanho = getItemByteSize(chavePreMigracao, snapshot);
+          if (tamanho <= 3 * 1024 * 1024) {
+            await chrome.storage.local.set({ [chavePreMigracao]: snapshot });
+          } else {
+            console.warn('[NotasPat] Snapshot pre-migracao pulado por tamanho (' + tamanho + ' bytes)');
+          }
         }
-        // Marca mesmo quando nao havia nada para guardar: nunca mais tenta.
-        await chrome.storage.local.set({ [`${chavePreMigracao}_criado`]: true });
+        // Marca mesmo quando nao havia nada para guardar (ou o snapshot foi
+        // pulado por tamanho): nunca mais tenta, e uma unica chance.
+        await chrome.storage.local.set({ [chaveCriado]: true }).catch(() => {});
       } else {
         // Ja passou da unica chance de criar: so expira o que ja existe.
         // Expira em 30 dias: o snapshot existe para o usuario recuperar
