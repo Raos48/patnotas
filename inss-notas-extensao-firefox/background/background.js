@@ -667,11 +667,17 @@ async function reconciliarAlarmes(protocolos) {
       const nota = notas[protocolo];
       const reminderTime = nota && nota.reminder ? new Date(nota.reminder).getTime() : 0;
 
-      if (reminderTime > agora) {
-        await chrome.alarms.create(alarmName, { when: reminderTime }); // mesmo nome substitui o alarme anterior
-      } else {
+      if (!nota || !nota.reminder) {
         await chrome.alarms.clear(alarmName);
+      } else if (reminderTime > agora) {
+        await chrome.alarms.create(alarmName, { when: reminderTime }); // mesmo nome substitui o alarme anterior
       }
+      // Lembrete ja vencido (reminderTime <= agora) mas ainda presente na
+      // nota: nao mexe no alarme. O Chrome pode disparar um alarme de
+      // disparo unico ate ~1 min depois do "when"; se uma edicao mudar
+      // outro campo da nota bem nessa janela, limpar aqui cancelaria a
+      // notificacao que ja estava prestes a tocar, e o campo reminder
+      // ficaria preso para sempre (onAlarm e quem o zera, e nunca rodaria).
     }
   } catch (error) {
     console.error('[NotasPat] Erro ao atualizar alarmes:', error);
