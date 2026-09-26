@@ -154,7 +154,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span>Importar</span>
       </button>
-      <button id="btnStdTexts" class="btn-action" title="Textos Padrao">
+      <button id="btnStdTexts" class="btn-action" title="Textos Padrão">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
         <span>Textos</span>
       </button>
@@ -192,8 +192,7 @@
 
     <!-- Footer -->
     <footer class="popup-footer">
-      <span class="version">v1.4.0</span>
-      <span class="footer-credit">NotasPat</span>
+      <span class="version">NotasPat v1.4.0</span>
     </footer>
   </div>
 
@@ -269,11 +268,25 @@
         </div>
         <div class="confirm-message" id="importModalMessage">Importar notas</div>
         <div class="confirm-sub" id="importModalSub"></div>
+        <div class="replace-confirm">
+          <label class="replace-confirm-label" for="importReplaceConfirmInput">
+            Para <strong>Substituir</strong>, digite <code>SUBSTITUIR</code>. As notas atuais só são apagadas depois que as novas estiverem salvas.
+          </label>
+          <input
+            type="text"
+            id="importReplaceConfirmInput"
+            class="replace-confirm-input"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            placeholder="SUBSTITUIR"
+          >
+        </div>
       </div>
       <div class="modal-footer import-modal-footer">
         <button id="importCancel" class="btn-secondary">Cancelar</button>
         <button id="importMerge" class="btn-primary">Mesclar</button>
-        <button id="importReplace" class="btn-danger">Substituir</button>
+        <button id="importReplace" class="btn-danger" disabled>Substituir</button>
       </div>
     </div>
   </div>

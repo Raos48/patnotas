@@ -22,11 +22,19 @@ const CORES_NOTAS = [
   { nome: 'Roxo', hex: '#e0c6f8', dobra: '#c48df3' }
 ];
 
+// Ícones de interface: SVG inline. Emoji são proibidos como interface
+// pelo DESIGN.md (leitores de tela anunciam "clipboard emoji").
+const UI_ICONS = {
+  note: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  edit: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  trash: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+};
+
 const TAGS_CONFIG = {
-  urgente: { label: '🔴 Urgente', class: 'inss-nota-tag-urgente' },
-  pendencia: { label: '🟡 Pendência', class: 'inss-nota-tag-pendencia' },
-  lembrete: { label: '🔵 Lembrete', class: 'inss-nota-tag-lembrete' },
-  concluido: { label: '🟢 Concluído', class: 'inss-nota-tag-concluido' }
+  urgente: { label: 'Urgente', class: 'inss-nota-tag-urgente' },
+  pendencia: { label: 'Pendência', class: 'inss-nota-tag-pendencia' },
+  lembrete: { label: 'Lembrete', class: 'inss-nota-tag-lembrete' },
+  concluido: { label: 'Concluído', class: 'inss-nota-tag-concluido' }
 };
 
 const DEFAULT_COLOR = CORES_NOTAS[0];
@@ -53,6 +61,82 @@ let isProcessingTransition = false;
 let navigationHandlersInstalled = false;
 let navPollInterval = null;
 let titleObserver = null;
+
+// ============ VIDA DO CONTEXTO DA EXTENSÃO ============
+// Quando a extensão é recarregada (ou atualizada) com esta aba aberta, o
+// content script fica órfão: chrome.* some, e qualquer leitura/escrita morre.
+// Sem esta guarda, a servidora clica em Salvar, recebe um erro genérico e
+// não descobre que a solução é recarregar a página. A promessa do produto é
+// "nunca perder notas" — um salvamento que falha sem explicação é perda.
+let contextDead = false;
+const teardownFns = [];
+
+function isContextAlive() {
+  try {
+    // Em contexto válido, runtime.id é o ID da extensão. Depois de um
+    // reload/update, a API some, ou o id foi embora com ela.
+    const api = (typeof browser !== 'undefined' && browser.runtime) ? browser
+              : (typeof chrome !== 'undefined' && chrome.runtime) ? chrome
+              : null;
+    if (!api || !api.runtime || !api.runtime.id) return false;
+    // O storage morre junto com o contexto. Exigi-lo captura o estado em
+    // que chrome.storage[area] vira undefined e a chamada explode como
+    // TypeError ("Cannot read properties of undefined (reading 'get')"),
+    // que e o sintoma que aparece DEPOIS do primeiro
+    // "Extension context invalidated".
+    if (!api.storage || !api.storage.local) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function onTeardown(fn) {
+  teardownFns.push(fn);
+}
+
+function markContextDead(onde) {
+  if (contextDead) return;
+  contextDead = true;
+  console.warn('[NotasPat] Contexto da extensão invalidado (' + onde + '). Recarregue a página para continuar.');
+
+  // Parar todo o trabalho em segundo plano: observers e intervalos ficam
+  // só gerando erro em loop num contexto que já morreu.
+  while (teardownFns.length) {
+    try { teardownFns.pop()(); } catch (e) { /* contexto morto: nada a fazer */ }
+  }
+  if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+  if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+
+  showToast('A extensão foi recarregue. Recarregue a página (F5) para continuar usando suas notas.', 'warning');
+}
+
+/**
+ * Envolve uma chamada de storage e converte falha de contexto morto em um
+ * erro tipado, em vez de TypeError solto no console.
+ */
+function guardContext(onde, fn) {
+  if (contextDead) return Promise.reject(new Error('CONTEXT_DEAD'));
+  if (!isContextAlive()) {
+    markContextDead(onde);
+    return Promise.reject(new Error('CONTEXT_DEAD'));
+  }
+  return Promise.resolve()
+    .then(fn)
+    .catch(err => {
+      const msg = (err && err.message) || String(err);
+      // Duas assinaturas do mesmo óbito: o Chrome recusa a chamada com
+      // "Extension context invalidated", ou a API já sumiu e a chamada
+      // vira TypeError. Em qualquer uma delas, ou se o contexto já não
+      // está vivo, isso é morte de contexto — não um erro de storage.
+      const recusou = msg.indexOf('Extension context') !== -1;
+      if (!contextDead && (recusou || !isContextAlive())) {
+        markContextDead(onde);
+        return Promise.reject(new Error('CONTEXT_DEAD'));
+      }
+      return Promise.reject(err);
+    });
+}
 
 /**
  * Executa uma Promise com timeout de segurança
@@ -183,7 +267,7 @@ function showToast(message, type = 'success') {
 
 // ============ CONFIRMATION MODAL ============
 
-function showConfirm(message, subMessage = '', onConfirm, icon = '⚠️') {
+function showConfirm(message, subMessage = '', onConfirm, icon = '') {
   const overlay = document.createElement('div');
   overlay.className = 'inss-confirm-overlay';
 
@@ -241,7 +325,7 @@ function showPreview(element, nota, protocolo) {
 
   const header = document.createElement('div');
   header.className = 'inss-nota-preview-header';
-  header.textContent = `📝 Nota: ${protocolo}`;
+  header.textContent = `Nota: ${protocolo}`;
 
   const text = document.createElement('div');
   text.className = 'inss-nota-preview-text';
@@ -301,7 +385,12 @@ function createAddButton(protocolo) {
   const button = document.createElement('button');
   button.className = 'inss-nota-add-btn';
   button.title = 'Adicionar nota';
-  button.innerHTML = '📝 <span>Nota</span>';
+  button.setAttribute('aria-label', 'Adicionar nota');
+  const iconeNota = svgIcone('note');
+  if (iconeNota) button.appendChild(iconeNota);
+  const rotuloNota = document.createElement('span');
+  rotuloNota.textContent = 'Nota';
+  button.appendChild(rotuloNota);
 
   button.addEventListener('click', (e) => {
     console.log('[NotasPat] Botão clicado para protocolo:', protocolo);
@@ -355,23 +444,24 @@ function createNoteSticky(protocolo, nota) {
 
   const titulo = document.createElement('span');
   titulo.className = 'inss-nota-titulo';
-  titulo.textContent = '📝';
+  const iconeTitulo = svgIcone('note');
+  if (iconeTitulo) titulo.appendChild(iconeTitulo);
 
   const actions = document.createElement('div');
   actions.className = 'inss-nota-actions';
 
   // Botões
-  const btnEdit = createActionButton('✏️', 'Editar nota', () => {
+  const btnEdit = createActionButton(svgIcone('edit'), 'Editar nota', () => {
     openEditor(container, protocolo, nota.text, nota.color, nota.tags);
   });
   btnEdit.className = 'inss-nota-btn inss-nota-edit';
 
-  const btnDelete = createActionButton('🗑️', 'Excluir nota', () => {
+  const btnDelete = createActionButton(svgIcone('trash'), 'Excluir nota', () => {
     showConfirm(
       `Excluir nota do protocolo ${protocolo}?`,
       'Esta ação não pode ser desfeita.',
       () => deleteNoteHandler(container, protocolo),
-      '🗑️'
+      ''
     );
   });
   btnDelete.className = 'inss-nota-btn inss-nota-delete';
@@ -413,11 +503,38 @@ function createNoteSticky(protocolo, nota) {
   return container;
 }
 
-function createActionButton(emoji, title, onClick) {
+/**
+ * Monta um ícone SVG do catálogo UI_ICONS.
+ *
+ * O markup vem de CONSTANTE do sistema, nunca de dado do usuário, e é
+ * inserido via innerHTML porque é SVG. Quem recebe texto do usuário
+ * continua obrigado a usar textContent — ver CLAUDE.md (prevenção XSS).
+ *
+ * @param {string} nome - chave de UI_ICONS ('note' | 'edit' | 'trash')
+ * @returns {Element|null} o nó do SVG, pronto para appendChild
+ */
+function svgIcone(nome) {
+  const alvo = document.createElement('div');
+  alvo.innerHTML = (UI_ICONS && UI_ICONS[nome]) || '';
+  return alvo.firstElementChild;
+}
+
+/**
+ * Cria um botão de ação da nota.
+ * Aceita UM NÓ (ícone do catálogo) ou um rótulo de TEXTO — que vai para
+ * textContent, jamais para innerHTML.
+ */
+function createActionButton(icone, title, onClick) {
   const button = document.createElement('button');
   button.className = 'inss-nota-btn';
   button.title = title;
-  button.textContent = emoji;
+  button.setAttribute('aria-label', title);
+  if (icone && typeof icone === 'object' && icone.nodeType === 1) {
+    button.appendChild(icone);
+  } else if (icone) {
+    // rótulo textual: textContent escapa qualquer coisa vinda de fora
+    button.textContent = icone;
+  }
   button.addEventListener('click', (e) => {
     console.log('[NotasPat] Botão de ação clicado:', title);
     e.preventDefault();
@@ -600,7 +717,7 @@ function atualizarStickyAposFallback(container, protocolo, text, color, tags) {
 
 function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
   console.log('[NotasPat] Salvando nota para protocolo:', protocolo);
-  saveNote(protocolo, text, color, tags).then(nota => {
+  guardContext('saveNoteForProtocolo', () => saveNote(protocolo, text, color, tags)).then(nota => {
     notasCache[protocolo] = nota;
     console.log('[NotasPat] Nota salva:', nota);
 
@@ -624,6 +741,13 @@ function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
     });
   }).catch(err => {
     console.error('[NotasPat] Erro ao salvar nota:', err);
+
+    // Nunca deixar parecer que salvou. A nota NÃO foi gravada neste caso.
+    if ((err && err.message) === 'CONTEXT_DEAD') {
+      // markContextDead ja mostrou o aviso com a solucao (F5).
+      return;
+    }
+
     if (isQuotaError(err)) {
       // A nota FOI salva localmente; o texto do erro explica isso ao usuario
       showToast(err.message, 'warning');
@@ -631,7 +755,7 @@ function saveNoteForProtocolo(container, protocolo, text, color, tags = []) {
         atualizarStickyAposFallback(container, protocolo, text, color, tags);
       }
     } else {
-      showToast('Erro ao salvar nota', 'error');
+      showToast('Não foi possível salvar a nota. Ela não foi gravada — tente novamente.', 'error');
     }
   });
 }
@@ -687,7 +811,7 @@ function openColorPicker(container, protocolo) {
 
 function deleteNoteHandler(container, protocolo) {
   console.log('[NotasPat] Excluindo nota para protocolo:', protocolo);
-  deleteNote(protocolo).then(deleted => {
+  guardContext('deleteNoteHandler', () => deleteNote(protocolo)).then(deleted => {
     console.log('[NotasPat] Nota excluída:', deleted);
     if (deleted) {
       delete notasCache[protocolo];
@@ -710,8 +834,9 @@ function deleteNoteHandler(container, protocolo) {
       console.log('[NotasPat] Nota não encontrada para excluir');
     }
   }).catch(err => {
-    console.error('Erro ao excluir nota:', err);
-    showToast('Erro ao excluir nota', 'error');
+    console.error('[NotasPat] Erro ao excluir nota:', err);
+    if ((err && err.message) === 'CONTEXT_DEAD') return; // aviso já foi dado
+    showToast('Não foi possível excluir a nota. Ela continua salva.', 'error');
   });
 }
 
@@ -737,6 +862,7 @@ function collectVisibleProtocolos() {
 }
 
 async function processRow(tr) {
+  if (contextDead) return;
   if (isRowProcessed(tr)) return;
   if (processingRows.has(tr)) return; // Já está sendo processada (mutex)
   processingRows.add(tr);
@@ -756,9 +882,10 @@ async function processRow(tr) {
     // Lazy load: se não está no cache, buscar individualmente do storage
     if (!(protocolo in notasCache)) {
       try {
-        const nota = await getNote(protocolo);
+        const nota = await guardContext('processRow', () => getNote(protocolo));
         notasCache[protocolo] = nota; // null se não existir
       } catch (err) {
+        if ((err && err.message) === 'CONTEXT_DEAD') return;
         console.error(`[NotasPat] Erro ao carregar nota ${protocolo}:`, err);
       }
     }
@@ -791,6 +918,7 @@ function processTable(table) {
 }
 
 function scanAllTables() {
+  if (contextDead) return;
   TABLE_IDS.forEach(tableId => {
     const table = document.getElementById(tableId);
     if (table) {
@@ -861,6 +989,9 @@ function startMutationObserver() {
       debouncedScan();
     }
   });
+
+  // Se o contexto da extensão morrer, este observer também para.
+  onTeardown(() => { try { mainObserver.disconnect(); } catch (e) { /* contexto morto */ } });
 
   // Observar #tarefas-container se existir (escopo mais restrito)
   const container = document.getElementById('tarefas-container');
@@ -951,6 +1082,7 @@ function setupNavigationHandlers() {
       }
     });
     titleObserver.observe(titleEl, { subtree: true, characterData: true });
+    onTeardown(() => { try { titleObserver.disconnect(); } catch (e) { /* contexto morto */ } });
   }
 
   // Poll as fallback for SPA frameworks
@@ -960,6 +1092,7 @@ function setupNavigationHandlers() {
       handlePageTransitionDebounced();
     }
   }, 2000);
+  onTeardown(() => { if (navPollInterval) { clearInterval(navPollInterval); navPollInterval = null; } });
 
   navigationHandlersInstalled = true;
   console.log('[NotasPat] Navigation handlers installed');
@@ -995,7 +1128,7 @@ async function syncTheme() {
     isDarkTheme = result.theme === 'dark';
     document.body.classList.toggle('inss-dark-theme', isDarkTheme);
   } catch (error) {
-    console.error('Erro ao sincronizar tema:', error);
+    console.error('[NotasPat] Erro ao sincronizar tema:', error);
   }
 }
 
@@ -1388,8 +1521,11 @@ async function init() {
     // Carregar apenas notas dos protocolos visíveis na página (com timeout de segurança)
     const visibleProtocolos = collectVisibleProtocolos();
     try {
-      notasCache = await withTimeout(getNotesForProtocolos(visibleProtocolos), 5000);
+      notasCache = await guardContext('init', () =>
+        withTimeout(getNotesForProtocolos(visibleProtocolos), 5000)
+      );
     } catch (err) {
+      if ((err && err.message) === 'CONTEXT_DEAD') return;
       console.warn('[NotasPat] Storage timeout ou erro, iniciando com cache vazio:', err.message);
       notasCache = {};
     }

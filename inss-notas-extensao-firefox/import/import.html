@@ -54,9 +54,25 @@
         <div id="modeFileInfo" class="mode-info"></div>
         <div class="mode-message" id="modeMessage"></div>
         <div class="mode-hint">Mesclar mantém suas notas atuais. Substituir apaga todas e importa apenas o arquivo.</div>
+        <div id="replaceConfirmWrap" class="replace-confirm">
+          <label class="replace-confirm-label" for="replaceConfirmInput">
+            Para <strong>Substituir</strong>, digite <code>SUBSTITUIR</code> abaixo. As notas atuais só são apagadas depois que as novas estiverem salvas.
+          </label>
+          <input
+            type="text"
+            id="replaceConfirmInput"
+            class="replace-confirm-input"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            placeholder="SUBSTITUIR"
+            aria-describedby="replaceConfirmHint"
+          >
+          <span id="replaceConfirmHint" class="replace-confirm-hint">Isto não pode ser desfeito.</span>
+        </div>
         <div class="mode-actions">
           <button id="btnMerge" class="btn-primary">Mesclar</button>
-          <button id="btnReplace" class="btn-danger">Substituir</button>
+          <button id="btnReplace" class="btn-danger" disabled>Substituir</button>
           <button id="btnModeCancel" class="btn-secondary">Cancelar</button>
         </div>
       </div>

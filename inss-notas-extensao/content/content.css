@@ -18,11 +18,12 @@
   --inss-bg-tertiary: #EDF0F5;
   --inss-text-primary: #22252C;
   --inss-text-secondary: #5C6473;
-  --inss-text-muted: #A4AABC;
+  --inss-text-muted: #656C7B;
   --inss-border-color: #D4D9E2;
   --inss-accent-primary: #0B7D3B;
   --inss-accent-secondary: #0A6F35;
   --inss-accent-active: #08592A;
+  --inss-accent-on-primary: #FFFFFF;
   --inss-secondary-color: #145FA3;
   --inss-info-accent: #F2B73B;
   --inss-shadow-sm: rgba(34, 37, 44, 0.08);
@@ -48,11 +49,12 @@
   --inss-bg-tertiary: #252930;
   --inss-text-primary: #E4E6EB;
   --inss-text-secondary: #A4AABC;
-  --inss-text-muted: #6B7280;
+  --inss-text-muted: #8B93A3;
   --inss-border-color: #2E3340;
   --inss-accent-primary: #2EAD5E;
-  --inss-accent-secondary: #0B7D3B;
+  --inss-accent-secondary: #28A055;
   --inss-accent-active: #08592A;
+  --inss-accent-on-primary: #0A2416;
   --inss-secondary-color: #4A90D9;
   --inss-info-accent: #F2B73B;
   --inss-shadow-sm: rgba(0, 0, 0, 0.2);
@@ -377,7 +379,7 @@
 
 .inss-nota-btn-save {
   background: var(--inss-accent-primary);
-  color: #fff;
+  color: var(--inss-accent-on-primary);
 }
 
 .inss-nota-btn-save:hover {
@@ -913,5 +915,34 @@
 
   .inss-toast-container {
     display: none !important;
+  }
+}
+
+
+/* ============ NEUTRALIZACAO DO BRILHO NO TEMA ESCURO ============
+   O "Brilho de Commit" (sombra tintada) e uma decisao da identidade
+   corporativa em superficie clara. No escuro, sombra colorida vira o
+   halo cromatico que o DESIGN.md proibe — ai a elevacao e neutra. */
+@media (prefers-color-scheme: dark) {
+  .btn-primary,
+  .btn-danger,
+  .ds-btn-primary,
+  .ds-btn-danger,
+  .inss-nota-btn-save,
+  .inss-confirm-btn-ok {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .btn-primary:hover,
+  .btn-danger:hover,
+  .inss-nota-btn-save:hover,
+  .inss-confirm-btn-ok:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+  }
+
+  .toast,
+  .inss-toast,
+  .modal-content {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
   }
 }

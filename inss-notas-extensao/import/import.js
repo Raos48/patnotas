@@ -21,6 +21,11 @@ const modeMessage = document.getElementById('modeMessage');
 const btnMerge = document.getElementById('btnMerge');
 const btnReplace = document.getElementById('btnReplace');
 const btnModeCancel = document.getElementById('btnModeCancel');
+const replaceConfirmWrap = document.getElementById('replaceConfirmWrap');
+const replaceConfirmInput = document.getElementById('replaceConfirmInput');
+
+// Texto que a usuária digita para liberar a via destrutiva.
+const REPLACE_CONFIRM_PHRASE = 'SUBSTITUIR';
 
 const successText = document.getElementById('successText');
 const btnClose = document.getElementById('btnClose');
@@ -98,11 +103,22 @@ function setupEvents() {
 
   // Botões do modo
   btnMerge.addEventListener('click', () => doImport(false));
-  btnReplace.addEventListener('click', () => doImport(true));
+  btnReplace.addEventListener('click', () => {
+    // Guarda de via destrutiva: só avança se a frase foi digitada.
+    // Nunca deixar a destruição a um clique de distância.
+    if (!replaceConfirmReady()) {
+      replaceConfirmInput?.focus();
+      return;
+    }
+    doImport(true);
+  });
   btnModeCancel.addEventListener('click', () => {
     pendingText = null;
+    resetReplaceConfirm();
     showState('select');
   });
+
+  replaceConfirmInput?.addEventListener('input', syncReplaceConfirm);
 
   // Botão fechar
   btnClose.addEventListener('click', () => {
@@ -124,6 +140,32 @@ function showState(state) {
   stateLoading.style.display = state === 'loading' ? '' : 'none';
   stateSuccess.style.display = state === 'success' ? '' : 'none';
   stateError.style.display = state === 'error' ? '' : 'none';
+  if (state !== 'mode') resetReplaceConfirm();
+}
+
+// ============ GUARDA DA VIA DESTRUTIVA ============
+
+function replaceConfirmReady() {
+  return (replaceConfirmInput?.value || '').trim().toUpperCase() === REPLACE_CONFIRM_PHRASE;
+}
+
+function syncReplaceConfirm() {
+  if (!btnReplace) return;
+  const ready = replaceConfirmReady();
+  btnReplace.disabled = !ready;
+  btnReplace.classList.toggle('is-armed', ready);
+  if (replaceConfirmWrap) {
+    replaceConfirmWrap.classList.toggle('is-invalid', !ready && (replaceConfirmInput?.value || '').length > 0);
+  }
+}
+
+function resetReplaceConfirm() {
+  if (replaceConfirmInput) replaceConfirmInput.value = '';
+  if (btnReplace) {
+    btnReplace.disabled = true;
+    btnReplace.classList.remove('is-armed');
+  }
+  if (replaceConfirmWrap) replaceConfirmWrap.classList.remove('is-invalid');
 }
 
 async function handleFile(file) {
@@ -165,6 +207,7 @@ async function handleFile(file) {
     // Mostrar opções mesclar/substituir
     modeFileInfo.textContent = `Arquivo: ${file.name} (${importCount} nota${importCount !== 1 ? 's' : ''})`;
     modeMessage.textContent = `Você tem ${existingCount} nota(s) salva(s).`;
+    resetReplaceConfirm();
     showState('mode');
   } else {
     // Importar direto
@@ -172,32 +215,81 @@ async function handleFile(file) {
   }
 }
 
+/**
+ * Importa o arquivo pendente.
+ *
+ * ORDEM SEGURA (restrição dura do produto: nunca perder notas existentes):
+ * o arquivo é gravado PRIMEIRO. As notas antigas só saem depois que a
+ * gravação foi confirmada. Se a importação falhar no meio, a usuária
+ * continua com tudo o que já tinha — nunca há um instante em que as notas
+ * antigas já foram e as novas ainda não chegaram.
+ */
 async function doImport(replace) {
   if (!pendingText) return;
 
   showState('loading');
   console.log('[NotasPat][import] Importando... modo:', replace ? 'substituir' : 'mesclar');
 
-  try {
-    if (replace) {
-      await deleteAllNotes();
-      console.log('[NotasPat][import] Notas existentes removidas');
+  // Só o modo "substituir" precisa saber o que já existia, para limpar o
+  // que sobrou depois. Listar antes de escrever, nunca apagar antes.
+  let anteriores = [];
+  if (replace) {
+    try {
+      anteriores = Object.keys(await getAllNotes());
+    } catch (error) {
+      console.warn('[NotasPat][import] Não foi possível listar as notas atuais:', error);
     }
-
-    const result = await importNotes(pendingText);
-    const count = Object.keys(result).length;
-    console.log('[NotasPat][import] Importação concluída:', count, 'notas');
-
-    successText.textContent = replace
-      ? `${count} nota${count !== 1 ? 's' : ''} importada${count !== 1 ? 's' : ''} (substituição).`
-      : `${count} nota${count !== 1 ? 's' : ''} importada${count !== 1 ? 's' : ''} (mesclagem).`;
-    showState('success');
-    pendingText = null;
-  } catch (error) {
-    console.error('[NotasPat][import] Erro na importação:', error);
-    showError('Erro ao importar', error.message);
-    pendingText = null;
   }
+
+  let result;
+  try {
+    result = await importNotes(pendingText);
+  } catch (error) {
+    // importNotes só rejeita ANTES de gravar (JSON inválido / formato) ou
+    // DEPOIS de gravar tudo (cota: parte ficou só neste computador, e o
+    // erro vem com .imported). No segundo caso nada foi perdido.
+    if (error && error.code === 'QUOTA_EXCEEDED' && error.imported) {
+      result = error.imported;
+      console.warn('[NotasPat][import] Importado com aviso de cota:', error.message);
+    } else {
+      console.error('[NotasPat][import] Erro na importação:', error);
+      showError('Erro ao importar', (error && error.message) || 'Suas notas atuais não foram alteradas.');
+      pendingText = null;
+      return;
+    }
+  }
+
+  const importadas = new Set(Object.keys(result || {}));
+
+  // Só agora, com o arquivo gravado, é que o que sobrou do modo "substituir"
+  // pode sair. Uma remoção só (removeFromBothAreas), não uma por nota.
+  if (replace && anteriores.length > 0) {
+    const sobraram = anteriores.filter(p => !importadas.has(p));
+    if (sobraram.length > 0) {
+      try {
+        await removeFromBothAreas(sobraram.map(p => NOTE_PREFIX + p));
+        console.log('[NotasPat][import] Notas antigas removidas após a gravação:', sobraram.length);
+      } catch (error) {
+        // A importação valeu; a limpeza é que falhou. Não é perda de dado.
+        console.error('[NotasPat][import] Falha ao remover notas antigas:', error);
+        showError(
+          'Importado, mas com sobras',
+          `As novas notas foram salvas. ${sobraram.length} nota(s) antiga(s) não puderam ser removidas — exclua manualmente se quiser.`
+        );
+        pendingText = null;
+        return;
+      }
+    }
+  }
+
+  const count = importadas.size;
+  console.log('[NotasPat][import] Importação concluída:', count, 'notas');
+
+  successText.textContent = replace
+    ? `${count} nota${count !== 1 ? 's' : ''} importada${count !== 1 ? 's' : ''} (substituição).`
+    : `${count} nota${count !== 1 ? 's' : ''} importada${count !== 1 ? 's' : ''} (mesclagem).`;
+  showState('success');
+  pendingText = null;
 }
 
 function showError(title, hint) {

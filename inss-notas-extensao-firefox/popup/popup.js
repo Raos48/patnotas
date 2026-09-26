@@ -14,6 +14,17 @@ const CORES_NOTAS = [
   { nome: 'Roxo',     hex: '#e0c6f8', dobra: '#c48df3' }
 ];
 
+// Ícones de interface: SVG inline (stroke: currentColor). Emoji são
+// proibidos como interface pelo DESIGN.md — leitores de tela anunciam
+// "clipboard emoji" em vez de "copiar".
+const UI_ICONS = {
+  copy: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  edit: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  note: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  warn: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+};
+
 const TAGS_DISPONIVEIS = ['urgente', 'pendencia', 'lembrete', 'concluido'];
 
 const TEMPLATES_PADRAO = [
@@ -109,6 +120,11 @@ const importModalSub = document.getElementById('importModalSub');
 const importCancel = document.getElementById('importCancel');
 const importMerge = document.getElementById('importMerge');
 const importReplace = document.getElementById('importReplace');
+const importReplaceConfirmInput = document.getElementById('importReplaceConfirmInput');
+
+// Frase que a usuária digita para liberar a via destrutiva da importação.
+const REPLACE_CONFIRM_PHRASE = 'SUBSTITUIR';
+
 let pendingImportText = null;
 
 // ============ UTILIDADES - DEBOUNCE ============
@@ -130,7 +146,8 @@ let selectedTags = [];
 let currentEditProtocolo = null;
 let currentConfirmCallback = null;
 let isDarkTheme = false;
-let draggedItem = null;
+// Estado de carga: erro ≠ vazio ≠ filtrado vazio. Ver renderNotes().
+let loadError = false;
 let displayedCount = PAGE_SIZE;
 
 // Reset paginação e renderizar (usado por busca/filtros)
@@ -166,7 +183,7 @@ async function loadTheme() {
     
     applyTheme();
   } catch (error) {
-    console.error('Erro ao carregar tema:', error);
+    console.error('[NotasPat] Erro ao carregar tema:', error);
   }
 }
 
@@ -180,7 +197,12 @@ function applyTheme() {
     sunIcon.style.display = isDarkTheme ? 'block' : 'none';
   } else {
     // Fallback for emoji-based toggle
-    themeToggle.textContent = isDarkTheme ? '☀️' : '🌙';
+    // Os SVGs de sol/lua já vêm no HTML — alternar a visibilidade deles,
+  // nunca substituir o conteúdo por um emoji.
+  const moon = themeToggle.querySelector('.theme-icon-moon');
+  const sun = themeToggle.querySelector('.theme-icon-sun');
+  if (moon) moon.style.display = isDarkTheme ? 'none' : '';
+  if (sun) sun.style.display = isDarkTheme ? '' : 'none';
   }
   themeToggle.title = isDarkTheme ? 'Tema claro' : 'Tema escuro';
 }
@@ -192,7 +214,7 @@ async function toggleTheme() {
     await chrome.storage.local.set({ theme: isDarkTheme ? 'dark' : 'light' });
     showToast(`Tema ${isDarkTheme ? 'escuro' : 'claro'} ativado`, 'success');
   } catch (error) {
-    console.error('Erro ao salvar tema:', error);
+    console.error('[NotasPat] Erro ao salvar tema:', error);
   }
 }
 
@@ -227,10 +249,17 @@ async function loadNotes() {
     updateStatistics();
     await verifyStorageHealth();
   } catch (error) {
-    console.error('Erro ao carregar notas:', error);
+    console.error('[NotasPat] Erro ao carregar notas:', error);
+    loadError = true;
     counterText.textContent = 'Erro ao carregar';
-    showToast('Erro ao carregar notas', 'error');
+    counterText.closest('.counter-section')?.classList.add('is-error');
+    showToast('Erro ao carregar notas. Elas continuam salvas.', 'error');
+    renderNotes();
+    return;
   }
+
+  loadError = false;
+  counterText.closest('.counter-section')?.classList.remove('is-error');
 }
 
 async function verifyStorageHealth() {
@@ -243,7 +272,7 @@ async function verifyStorageHealth() {
       storageWarning.style.display = 'none';
     }
   } catch (error) {
-    console.error('Erro ao verificar storage:', error);
+    console.error('[NotasPat] Erro ao verificar storage:', error);
   }
 }
 
@@ -254,7 +283,7 @@ async function loadTemplates() {
     renderTemplatesList();
     renderSavedTemplates();
   } catch (error) {
-    console.error('Erro ao carregar templates:', error);
+    console.error('[NotasPat] Erro ao carregar templates:', error);
     templatesData = [...TEMPLATES_PADRAO];
   }
 }
@@ -278,12 +307,10 @@ function setupEventListeners() {
 
   // Exportar/Importar
   btnExport.addEventListener('click', exportNotesToFile);
-  btnImport.addEventListener('click', () => {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL('import/import.html')
-    });
-    window.close();
-  });
+  // Importação acontece no próprio popup: abrir o seletor de arquivo aqui
+  // em vez de empurrar a servidora para outra aba. (Nunca mais window.close()
+  // — ela perde a lista de onde estava no meio da fila.)
+  btnImport.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', importNotesFromFile);
 
   // Standard Texts events
@@ -375,10 +402,16 @@ function setupEventListeners() {
     if (text) await doImport(text);
   });
   importReplace.addEventListener('click', async () => {
+    // Guarda da via destrutiva: só avança se a frase foi digitada.
+    if (!replaceConfirmReady()) {
+      importReplaceConfirmInput?.focus();
+      return;
+    }
     const text = pendingImportText;
     closeImportModal();
-    if (text) await doReplaceImport(text);
+    if (text) await doImport(text, true);
   });
+  importReplaceConfirmInput?.addEventListener('input', syncReplaceConfirm);
   importModal.addEventListener('click', (e) => {
     if (e.target === importModal) closeImportModal();
   });
@@ -431,10 +464,13 @@ function showToast(message, type = 'success') {
 
 // ============ MODAL DE CONFIRMAÇÃO ============
 
-function showConfirm(message, subMessage = '', onConfirm, icon = '⚠️') {
+function showConfirm(message, subMessage = '', onConfirm, icon = '', actionLabel = 'Confirmar') {
   confirmIcon.textContent = icon;
   confirmMessage.textContent = message;
   confirmSub.textContent = subMessage;
+  // O botão nomeia a ação real ("Excluir nota"), não "Confirmar" — sob
+  // pressão de fila, "Confirmar" não diz o que está sendo confirmado.
+  confirmOk.textContent = actionLabel;
   currentConfirmCallback = onConfirm;
   confirmModal.classList.add('active');
 }
@@ -444,9 +480,31 @@ function closeConfirmModal() {
   currentConfirmCallback = null;
 }
 
+// ============ GUARDA DA VIA DESTRUTIVA (importação) ============
+
+function replaceConfirmReady() {
+  return (importReplaceConfirmInput?.value || '').trim().toUpperCase() === REPLACE_CONFIRM_PHRASE;
+}
+
+function syncReplaceConfirm() {
+  if (!importReplace) return;
+  const ready = replaceConfirmReady();
+  importReplace.disabled = !ready;
+  importReplace.classList.toggle('is-armed', ready);
+}
+
+function resetReplaceConfirm() {
+  if (importReplaceConfirmInput) importReplaceConfirmInput.value = '';
+  if (importReplace) {
+    importReplace.disabled = true;
+    importReplace.classList.remove('is-armed');
+  }
+}
+
 function closeImportModal() {
   importModal.classList.remove('active');
   pendingImportText = null;
+  resetReplaceConfirm();
 }
 
 // ============ RENDERIZAÇÃO ============
@@ -483,7 +541,9 @@ function updateStatistics() {
   
   colorStats.innerHTML = CORES_NOTAS.map(cor => {
     const count = colorCounts[cor.hex] || 0;
-    return `<div class="color-stat" style="background: ${cor.hex}" title="${cor.nome}: ${count}">${count}</div>`;
+    // Pastel é papel (Two Materials Rule): o chip de chrome fica neutro e
+    // só a amostra de cor é pastel. Sem sombra em repouso, sem wiggle.
+    return `<div class="color-stat" title="${cor.nome}: ${count}"><span class="color-stat-dot" style="background:${cor.hex}"></span>${count}</div>`;
   }).join('');
 }
 
@@ -540,12 +600,28 @@ function renderNotes() {
 
   updateCounter();
 
+  // Três estados mutuamente exclusivos: erro de carga, vazio de verdade e
+  // resultado filtrado vazio. Misturá-los faz a usuária não saber se perdeu
+  // as notas ou se só filtrou demais — e "Erro ao carregar" não pode parecer
+  // um status normal.
+  if (loadError) {
+    notesList.innerHTML = `
+      <div class="empty-state empty-state-error">
+        <p>Não foi possível carregar suas notas.</p>
+        <small>As notas continuam salvas. Tente novamente.</small>
+        <button type="button" class="btn-secondary btn-small" id="btnRetryLoad">Tentar novamente</button>
+      </div>
+    `;
+    document.getElementById('btnRetryLoad')?.addEventListener('click', loadNotes);
+    return;
+  }
+
   if (entries.length === 0) {
     const hasSearch = searchInput.value.trim() || filterColor.value !== 'all' || filterTag.value !== 'all';
     notesList.innerHTML = `
       <div class="empty-state">
         <p>${hasSearch ? 'Nenhuma nota encontrada.' : 'Nenhuma nota salva ainda.'}</p>
-        <small>${hasSearch ? 'Tente ajustar os filtros.' : 'Clique em "📝 Nota" na página de tarefas para adicionar.'}</small>
+        <small>${hasSearch ? 'Tente ajustar os filtros.' : 'Clique em "Nota" na página de tarefas para adicionar.'}</small>
       </div>
     `;
     return;
@@ -585,7 +661,8 @@ function renderNotes() {
         `Excluir nota do protocolo ${btn.dataset.protocolo}?`,
         'Esta ação não pode ser desfeita.',
         () => deleteNoteByProtocolo(btn.dataset.protocolo),
-        '🗑️'
+        '',
+        'Excluir nota'
       );
     });
   });
@@ -624,16 +701,16 @@ function createNoteItem(protocolo, nota) {
   const safeTextColor = escapeAttr(getTextColorForBackground(nota.color));
 
   return `
-    <div class="note-item" draggable="true" data-protocolo="${safeProtocolo}">
+    <div class="note-item" data-protocolo="${safeProtocolo}">
       <div class="note-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="drag-handle" title="Arrastar">⋮⋮</span>
           <span class="note-protocolo">${safeProtocolo}</span>
         </div>
         <div class="note-actions">
-          <button class="note-btn note-btn-copy" data-protocolo="${safeProtocolo}" title="Copiar protocolo">📋</button>
-          <button class="note-btn note-btn-edit" data-protocolo="${safeProtocolo}" title="Editar">✏️</button>
-          <button class="note-btn note-btn-delete" data-protocolo="${safeProtocolo}" title="Excluir">🗑️</button>
+          <button class="note-btn note-btn-copy" data-protocolo="${safeProtocolo}" title="Copiar protocolo">${UI_ICONS.copy}</button>
+          <button class="note-btn note-btn-edit" data-protocolo="${safeProtocolo}" title="Editar">${UI_ICONS.edit}</button>
+          <button class="note-btn note-btn-delete" data-protocolo="${safeProtocolo}" title="Excluir">${UI_ICONS.trash}</button>
         </div>
       </div>
       ${tags.length > 0 ? `<div class="tags-container">${tagsHtml}</div>` : ''}
@@ -647,71 +724,29 @@ function createNoteItem(protocolo, nota) {
 
 function getTagLabel(tag) {
   const labels = {
-    urgente: '🔴 Urgente',
-    pendencia: '🟡 Pendência',
-    lembrete: '🔵 Lembrete',
-    concluido: '🟢 Concluído'
+    urgente: 'Urgente',
+    pendencia: 'Pendência',
+    lembrete: 'Lembrete',
+    concluido: 'Concluído'
   };
   return labels[tag] || tag;
 }
 
 // ============ DRAG AND DROP ============
 
+/**
+ * Reordenação por arraste — DESATIVADA de propósito.
+ *
+ * O arraste só movia o nó no DOM e anunciava "Nota reordenada" com toast de
+ * sucesso, mas nada era persistido: `sortNotes()` reordenava por data/protocolo
+ * no próximo render (busca, filtro, paginação) e a ordem sumia. Era uma
+ * promessa falsa no núcleo do produto ("nota não se perde").
+ *
+ * Volta quando existir ordem manual persistida por nota e o arraste for
+ * desativado nos modos de ordenação automáticos. Até lá, nenhuma affordance.
+ */
 function setupDragAndDrop() {
-  const items = notesList.querySelectorAll('.note-item');
-  
-  items.forEach(item => {
-    item.addEventListener('dragstart', handleDragStart);
-    item.addEventListener('dragend', handleDragEnd);
-    item.addEventListener('dragover', handleDragOver);
-    item.addEventListener('drop', handleDrop);
-    item.addEventListener('dragleave', handleDragLeave);
-  });
-}
-
-function handleDragStart(e) {
-  draggedItem = this;
-  this.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-
-function handleDragEnd() {
-  this.classList.remove('dragging');
-  draggedItem = null;
-  notesList.querySelectorAll('.note-item').forEach(item => {
-    item.classList.remove('drag-over');
-  });
-}
-
-function handleDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  if (this !== draggedItem) {
-    this.classList.add('drag-over');
-  }
-}
-
-function handleDragLeave() {
-  this.classList.remove('drag-over');
-}
-
-function handleDrop(e) {
-  e.preventDefault();
-  this.classList.remove('drag-over');
-  
-  if (this !== draggedItem && draggedItem) {
-    const items = Array.from(notesList.querySelectorAll('.note-item'));
-    const draggedIndex = items.indexOf(draggedItem);
-    const targetIndex = items.indexOf(this);
-    
-    if (draggedIndex < targetIndex) {
-      this.parentNode.insertBefore(draggedItem, this.nextSibling);
-    } else {
-      this.parentNode.insertBefore(draggedItem, this);
-    }
-    
-    showToast('Nota reordenada', 'success');
-  }
+  // intencionalmente sem efeito — ver comentário acima
 }
 
 // ============ MODAL DE EDIÇÃO ============
@@ -842,7 +877,7 @@ async function deleteNoteByProtocolo(protocolo) {
     updateStatistics();
     showToast('Nota excluída com sucesso!', 'success');
   } catch (error) {
-    console.error('Erro ao excluir nota:', error);
+    console.error('[NotasPat] Erro ao excluir nota:', error);
     showToast('Erro ao excluir nota. Tente novamente.', 'error');
   }
 }
@@ -863,7 +898,7 @@ function renderTemplatesList() {
     const safeNome = escapeHtml(t.nome);
     return `
       <div class="template-item" data-id="${safeId}">
-        📋 ${safeNome}
+        ${UI_ICONS.note} ${safeNome}
       </div>
     `;
   }).join('');
@@ -892,7 +927,7 @@ function renderSavedTemplates() {
       <div class="note-item" style="margin-bottom: 8px;">
         <div class="note-header">
           <span class="note-protocolo">${safeNome}</span>
-          <button class="note-btn" data-id="${safeId}" title="Excluir">🗑️</button>
+          <button class="note-btn" data-id="${safeId}" title="Excluir">${UI_ICONS.trash}</button>
         </div>
         <div class="note-text" style="--nota-bg: #f5f5f5; font-size: 11px;">${safeTexto}</div>
       </div>
@@ -905,7 +940,8 @@ function renderSavedTemplates() {
         'Excluir este template?',
         '',
         () => deleteTemplate(btn.dataset.id),
-        '🗑️'
+        '',
+        'Excluir template'
       );
     });
   });
@@ -949,7 +985,7 @@ async function saveTemplates() {
   try {
     await chrome.storage.local.set({ templates: templatesData });
   } catch (error) {
-    console.error('Erro ao salvar templates:', error);
+    console.error('[NotasPat] Erro ao salvar templates:', error);
   }
 }
 
@@ -971,7 +1007,7 @@ async function exportNotesToFile() {
     
     showToast('Notas exportadas com sucesso!', 'success');
   } catch (error) {
-    console.error('Erro ao exportar notas:', error);
+    console.error('[NotasPat] Erro ao exportar notas:', error);
     showToast('Erro ao exportar notas.', 'error');
   }
 }
@@ -1006,29 +1042,69 @@ async function importNotesFromFile(event) {
   }
 }
 
-async function doImport(text) {
-  try {
-    await importNotes(text);
-    await loadNotes();
-    showToast('Notas importadas com sucesso!', 'success');
-    await verifyStorageHealth();
-  } catch (error) {
-    console.error('[NotasPat] Erro ao importar notas:', error);
-    showToast('Erro ao importar. Verifique o arquivo.', 'error');
+/**
+ * Grava o arquivo de importação.
+ *
+ * ORDEM SEGURA (restrição dura do produto: nunca perder notas existentes):
+ * o arquivo é gravado PRIMEIRO; as notas antigas só saem depois que a
+ * gravação foi confirmada. Nunca existe um instante em que as antigas já
+ * foram e as novas ainda não chegaram.
+ *
+ * @param {string} text - JSON exportado
+ * @param {boolean} replace - true apaga o que não veio no arquivo
+ */
+async function doImport(text, replace = false) {
+  // Antes de qualquer escrita, registrar o que já existe — só para saber
+  // o que sobrou depois. Não se apaga nada aqui.
+  let anteriores = [];
+  if (replace) {
+    try {
+      anteriores = Object.keys(await getAllNotes());
+    } catch (error) {
+      console.warn('[NotasPat] Não foi possível listar as notas atuais:', error);
+    }
   }
-}
 
-async function doReplaceImport(text) {
+  let result;
   try {
-    await deleteAllNotes();
-    await importNotes(text);
-    await loadNotes();
-    showToast('Notas substituídas com sucesso!', 'success');
-    await verifyStorageHealth();
+    result = await importNotes(text);
   } catch (error) {
-    console.error('[NotasPat] Erro ao substituir notas:', error);
-    showToast('Erro ao importar. Verifique o arquivo.', 'error');
+    // importNotes só rejeita ANTES de gravar (JSON/formato) ou DEPOIS de
+    // gravar tudo (cota: parte ficou só neste computador, com .imported).
+    if (error && error.code === 'QUOTA_EXCEEDED' && error.imported) {
+      result = error.imported;
+      console.warn('[NotasPat] Importado com aviso de cota:', error.message);
+    } else {
+      console.error('[NotasPat] Erro ao importar notas:', error);
+      showToast('Erro ao importar. Suas notas atuais não foram alteradas.', 'error');
+      return;
+    }
   }
+
+  const importadas = new Set(Object.keys(result || {}));
+
+  if (replace && anteriores.length > 0) {
+    const sobraram = anteriores.filter(p => !importadas.has(p));
+    if (sobraram.length > 0) {
+      try {
+        await removeFromBothAreas(sobraram.map(p => NOTE_PREFIX + p));
+      } catch (error) {
+        // A importação valeu; só a limpeza falhou. Não é perda de dado.
+        console.error('[NotasPat] Falha ao remover notas antigas:', error);
+        showToast(`Importado, mas ${sobraram.length} nota(s) antiga(s) não puderam ser removidas.`, 'error');
+        await loadNotes();
+        await verifyStorageHealth();
+        return;
+      }
+    }
+  }
+
+  await loadNotes();
+  showToast(
+    replace ? 'Notas substituídas com sucesso!' : 'Notas importadas com sucesso!',
+    'success'
+  );
+  await verifyStorageHealth();
 }
 
 // ============ UTILIDADES ============
@@ -1127,7 +1203,7 @@ function renderStdTextsList() {
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'stdtexts-empty';
-    empty.textContent = stdTextsData.length === 0 ? 'Nenhum texto padrao cadastrado.' : 'Nenhum resultado.';
+    empty.textContent = stdTextsData.length === 0 ? 'Nenhum texto padrão cadastrado.' : 'Nenhum resultado.';
     stdTextsList.appendChild(empty);
     return;
   }
@@ -1210,7 +1286,7 @@ async function handleSaveStdText() {
   const title = stdTextTitle.value.trim();
   const text = stdTextContent.value.trim();
 
-  if (!title) { showToast('Titulo e obrigatorio', 'error'); return; }
+  if (!title) { showToast('Título é obrigatório', 'error'); return; }
   if (text.length < 30) { showToast('Texto deve ter no minimo 30 caracteres', 'error'); return; }
 
   try {
@@ -1225,23 +1301,24 @@ async function handleSaveStdText() {
     await loadStdTexts();
   } catch (error) {
     console.error('[NotasPat] Erro ao salvar texto padrao:', error);
-    showToast(isQuotaError(error) ? error.message : 'Erro ao salvar texto padrao.', isQuotaError(error) ? 'warning' : 'error');
+    showToast(isQuotaError(error) ? error.message : 'Erro ao salvar texto padrão.', isQuotaError(error) ? 'warning' : 'error');
   }
 }
 
 async function handleDeleteStdText(item) {
   showConfirm(
     `Excluir "${escapeHtml(item.title)}"?`,
-    'Esta acao nao pode ser desfeita.',
+    'Esta ação não pode ser desfeita.',
     async () => {
       try {
         await deleteStandardText(item.id);
-        showToast('Texto excluido', 'success');
+        showToast('Texto excluído', 'success');
         await loadStdTexts();
       } catch (err) {
         showToast('Erro ao excluir: ' + err.message, 'error');
       }
     },
-    '\uD83D\uDDD1\uFE0F'
+    '',
+    'Excluir texto'
   );
 }

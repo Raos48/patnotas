@@ -13,13 +13,14 @@
   --bg-elevated: #FFFFFF;
   --text-primary: #22252C;
   --text-secondary: #5C6473;
-  --text-muted: #A4AABC;
-  --text-placeholder: #A4AABC;
+  --text-muted: #656C7B;
+  --text-placeholder: #656C7B;
   --border-color: #D4D9E2;
   --border-light: #E2E6ED;
   --accent-primary: #0B7D3B;
   --accent-secondary: #0A6F35;
   --accent-active: #08592A;
+  --accent-on-primary: #FFFFFF;
   --accent-light: rgba(11, 125, 59, 0.08);
   --accent-lighter: rgba(11, 125, 59, 0.2);
   --accent-glow: rgba(11, 125, 59, 0.05);
@@ -61,13 +62,14 @@
   --bg-elevated: #2A2E36;
   --text-primary: #E4E6EB;
   --text-secondary: #A4AABC;
-  --text-muted: #6B7280;
+  --text-muted: #8B93A3;
   --text-placeholder: #4B5563;
   --border-color: #2E3340;
   --border-light: #282D38;
   --accent-primary: #2EAD5E;
-  --accent-secondary: #0B7D3B;
+  --accent-secondary: #28A055;
   --accent-active: #08592A;
+  --accent-on-primary: #0A2416;
   --accent-light: rgba(46, 173, 94, 0.12);
   --accent-lighter: rgba(46, 173, 94, 0.25);
   --accent-glow: rgba(46, 173, 94, 0.06);
@@ -395,21 +397,32 @@ body {
 }
 
 .color-stat {
-  width: 24px;
   height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   font-size: 11px;
   font-weight: 700;
-  color: #2c2417;
-  transition: transform 0.15s ease;
-  box-shadow: 0 1px 3px var(--shadow-sm);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.color-stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .color-stat:hover {
-  transform: scale(1.15);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
 /* ============ SEARCH ============ */
@@ -510,6 +523,21 @@ body {
   letter-spacing: 0.2px;
 }
 
+/* Erro de carga não pode parecer status: sai do verde de ação. */
+.counter-section.is-error {
+  color: var(--error-text);
+  background: var(--error-bg);
+  border-bottom-color: var(--error-border);
+}
+
+.empty-state-error p {
+  color: var(--error-text);
+}
+
+.empty-state-error .btn-small {
+  margin-top: 12px;
+}
+
 /* ============ NOTES LIST ============ */
 .notes-list {
   flex: 1;
@@ -603,7 +631,7 @@ body {
   cursor: pointer;
   padding: 4px 5px;
   font-size: 13px;
-  opacity: 0.45;
+  opacity: 0.72;
   border-radius: 6px;
   transition: all 0.2s ease;
   line-height: 1;
@@ -921,7 +949,7 @@ body {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--accent-on-primary);
   box-shadow: 0 2px 8px rgba(11, 125, 59, 0.25);
 }
 
@@ -1088,6 +1116,86 @@ body {
   gap: 8px;
 }
 
+/* ============ GUARDA DA VIA DESTRUTIVA (importação) ============ */
+.replace-confirm {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--error-border);
+  border-radius: 10px;
+  background: var(--error-bg);
+  text-align: left;
+}
+
+.replace-confirm-label {
+  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  cursor: default;
+}
+
+.replace-confirm-label strong {
+  font-weight: 700;
+}
+
+.replace-confirm-label code {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(179, 38, 30, 0.12);
+  color: var(--error-text);
+}
+
+.replace-confirm-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.replace-confirm-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.55;
+  font-weight: 500;
+}
+
+.replace-confirm-input:hover {
+  border-color: var(--error-text);
+}
+
+.replace-confirm-input:focus {
+  outline: none;
+  border-color: var(--error-text);
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.18);
+}
+
+.btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-danger:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 /* ============ CHARACTER COUNTER ============ */
 .char-counter {
   display: flex;
@@ -1216,7 +1324,9 @@ body {
   left: 0;
   right: 0;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  /* Dropdown transitório: veio por cima, então eleva. Sem hairline junto —
+     a regra e borda definida OU elevacao suave, nunca os dois. */
+  border: none;
   border-radius: 12px;
   box-shadow: 0 8px 24px var(--shadow-lg);
   max-height: 150px;
@@ -1357,18 +1467,18 @@ body {
 .btn-open-page {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: #fff;
+  color: var(--accent-on-primary);
   box-shadow: 0 2px 6px rgba(11, 125, 59, 0.2);
 }
 
 .btn-open-page svg {
-  stroke: #fff;
+  stroke: currentColor;
 }
 
 .btn-open-page:hover {
   background: var(--accent-secondary);
   border-color: var(--accent-secondary);
-  color: #fff;
+  color: var(--accent-on-primary);
   box-shadow: 0 3px 8px rgba(11, 125, 59, 0.3);
   transform: translateY(-1px);
 }
@@ -1564,4 +1674,33 @@ textarea:focus-visible {
 ::selection {
   background: var(--accent-lighter);
   color: var(--text-primary);
+}
+
+
+/* ============ NEUTRALIZACAO DO BRILHO NO TEMA ESCURO ============
+   O "Brilho de Commit" (sombra tintada) e uma decisao da identidade
+   corporativa em superficie clara. No escuro, sombra colorida vira o
+   halo cromatico que o DESIGN.md proibe — ai a elevacao e neutra. */
+@media (prefers-color-scheme: dark) {
+  .btn-primary,
+  .btn-danger,
+  .ds-btn-primary,
+  .ds-btn-danger,
+  .inss-nota-btn-save,
+  .inss-confirm-btn-ok {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .btn-primary:hover,
+  .btn-danger:hover,
+  .inss-nota-btn-save:hover,
+  .inss-confirm-btn-ok:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+  }
+
+  .toast,
+  .inss-toast,
+  .modal-content {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+  }
 }
