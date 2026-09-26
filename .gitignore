@@ -28,3 +28,6 @@ build/
 # Backups
 bkp/
 
+# Documentation files (opted out except CLAUDE.md, which is versioned on purpose)
+*.md
+!CLAUDE.md
