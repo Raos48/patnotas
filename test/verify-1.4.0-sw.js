@@ -267,6 +267,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco E: 3/3');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 14/14) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 15/15) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
