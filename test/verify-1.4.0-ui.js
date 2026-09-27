@@ -9,7 +9,7 @@
  *   3. Aba Console, cole este arquivo todo e de Enter
  *   Se pedir, digite "allow pasting" antes.
  *
- * Esperado: 22/22.
+ * Esperado: 24/24.
  *
  * Rode uma unica vez por sessao do popup.
  *
@@ -117,6 +117,12 @@ const NotasPatTest = {
     console.log('[NotasPat][TESTE] Storage limpo (sync + local). Desfazer: NotasPatTest.restore(NotasPatTest._backup)');
   },
 
+  // O calculo do "resto" e uma ESTIMATIVA (quota - emUso - overhead da
+  // chave). Medido na pratica: o Chrome aceitou completar ate exatamente
+  // 102400 bytes, mas o Firefox recusou entre 102392-102400 e so aceitou a
+  // partir de 102336 - exige ~64 bytes de folga que o Chrome nao exige. Por
+  // isso o resultado da gravacao do resto e checado e recuado ate caber, em
+  // vez de assumir que sempre funciona.
   async fillSyncTo(bytes) {
     const gravar = obj => new Promise(r => chrome.storage.sync.set(obj, () => r(!chrome.runtime.lastError)));
     const filler = 'x'.repeat(7000);
@@ -126,8 +132,10 @@ const NotasPatTest = {
       if (!(await gravar({ [chave]: filler }))) {
         const quota = chrome.storage.sync.QUOTA_BYTES || 102400;
         const emUso = await new Promise(r => chrome.storage.sync.getBytesInUse(null, r));
-        const resto = quota - emUso - chave.length - 2;
-        if (resto > 0) await gravar({ [chave]: 'x'.repeat(resto) });
+        let resto = quota - emUso - chave.length - 2;
+        while (resto > 0 && !(await gravar({ [chave]: 'x'.repeat(resto) }))) {
+          resto -= 32;
+        }
         break;
       }
       escrito += filler.length + chave.length;
@@ -195,7 +203,13 @@ const NotasPatTest = {
   NotasPatTest.assert('B2 nota foi para o sync', !!noSyncB.note_111);
 
   // Fallback: sync cheio -> vai para local e NAO se perde
-  await NotasPatTest.fillSyncTo(100000);
+  const usoB3 = await NotasPatTest.fillSyncTo(100000);
+  // Pre-condicao: sem espaco livre menor que a margem de seguranca de
+  // producao (SYNC_QUOTA_SAFETY_MARGIN em lib/quota.js), checkQuotaBeforeWrite
+  // aprovaria a gravacao e B3/B4/B5 passariam sem testar o fallback de
+  // verdade. Ver o mesmo raciocinio em A5-pre (verify-1.4.0-sw.js).
+  NotasPatTest.assert('B3-pre sync esta cheio o bastante para furar a margem de seguranca',
+    (SYNC_QUOTA_BYTES_TOTAL - usoB3) < SYNC_QUOTA_SAFETY_MARGIN);
   let capturado = null;
   try { await saveNote('222', 'cai no fallback', '#fff8c6', []); } catch (e) { capturado = e; }
   NotasPatTest.assert('B3 erro de quota lancado', capturado && capturado.code === 'QUOTA_EXCEEDED');
@@ -237,7 +251,9 @@ const NotasPatTest = {
   // passado" em relacao a leitura do getAllNotes 500ms+ depois, senao esta
   // promocao legitima seria cancelada por engano.
   await NotasPatTest.reset();
-  await NotasPatTest.fillSyncTo(100000);
+  const usoB11 = await NotasPatTest.fillSyncTo(100000);
+  NotasPatTest.assert('B11-pre sync esta cheio o bastante para furar a margem de seguranca',
+    (SYNC_QUOTA_BYTES_TOTAL - usoB11) < SYNC_QUOTA_SAFETY_MARGIN);
   try { await saveNote('555', 'presa no local', '#fff8c6', []); } catch (e) { }
   const antes = await new Promise(r => chrome.storage.local.get(['note_555'], r));
   NotasPatTest.assert('B11 ficou em local enquanto cheio', !!antes.note_555);
@@ -348,7 +364,7 @@ const NotasPatTest = {
     window.filterUnchangedLocalNotes = filtroOriginal;
   }
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco B: 18/18');
+  console.log('[NotasPat][TESTE]     esperado no Bloco B: 20/20');
 
   // =========================================================
   // BLOCO C — Task 6: textos padrao + saude do storage
@@ -369,6 +385,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco C: 4/4');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 2 (total esperado: 22/22) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 2 (total esperado: 24/24) =====');
   console.log('[NotasPat][TESTE] Ao terminar as duas partes: NotasPatTest.restore(NotasPatTest._backup) se quiser os dados de volta.');
 })();

@@ -131,6 +131,17 @@ const NotasPatTest = {
    * Enche o sync ate aproximadamente `bytes` para testar estouro de quota.
    * Se o ultimo pedaco de 7 KB nao couber (alvo perto do limite, ex.: 100000),
    * completa o espaco que resta: o sync fica cheio de verdade.
+   *
+   * O calculo do "resto" e uma ESTIMATIVA (quota - emUso - overhead da chave).
+   * Medido na pratica (perfil Firefox descartavel): ambos os navegadores
+   * recusam corretamente o 15o item cheio de 7000 bytes (98144 + 7011 >
+   * 102400) - isso nao e o problema. O problema e so a gravacao do RESTO:
+   * com 98144 em uso, o Chrome aceitou completar ate exatamente 102400
+   * bytes, mas o Firefox recusou totais entre 102392 e 102400 e so aceitou a
+   * partir de 102336 - exige ~64 bytes de folga que o Chrome nao exige. Por
+   * isso o resultado da gravacao do resto agora e checado: se o Firefox
+   * recusar mesmo perto do teto, o codigo recua o tamanho ate um valor que
+   * caiba, em vez de assumir que sempre funciona.
    */
   async fillSyncTo(bytes) {
     const gravar = obj => new Promise(r => chrome.storage.sync.set(obj, () => r(!chrome.runtime.lastError)));
@@ -141,8 +152,12 @@ const NotasPatTest = {
       if (!(await gravar({ [chave]: filler }))) {
         const quota = chrome.storage.sync.QUOTA_BYTES || 102400;
         const emUso = await new Promise(r => chrome.storage.sync.getBytesInUse(null, r));
-        const resto = quota - emUso - chave.length - 2; // 2 = aspas do JSON da string
-        if (resto > 0) await gravar({ [chave]: 'x'.repeat(resto) });
+        let resto = quota - emUso - chave.length - 2; // 2 = aspas do JSON da string
+        // Recua ate a gravacao ser aceita (Firefox precisa de mais folga que
+        // o Chrome perto do teto exato) ou nao sobrar mais nada para tentar.
+        while (resto > 0 && !(await gravar({ [chave]: 'x'.repeat(resto) }))) {
+          resto -= 32;
+        }
         break;
       }
       escrito += filler.length + chave.length;

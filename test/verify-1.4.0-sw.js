@@ -7,7 +7,7 @@
  *   chrome://extensions/ > card do NotasPat > "service worker"
  *   Se o Chrome pedir, digite "allow pasting" antes de colar.
  *
- * Esperado: 36/36.
+ * Esperado: 37/37.
  *   - Se D1/D2/D3/D4/D5/D5b/D6/D6b/D7 falharem, PARAR: ha risco de perda de dados.
  *   - O Bloco A NAO mostra notificacao: migrateNotesToSync() chamada direto
  *     (como o teste faz) usa notificar:false por padrao - so onInstalled
@@ -121,6 +121,12 @@ const NotasPatTest = {
     console.log('[NotasPat][TESTE] Storage limpo (sync + local). Desfazer: NotasPatTest.restore(NotasPatTest._backup)');
   },
 
+  // O calculo do "resto" e uma ESTIMATIVA (quota - emUso - overhead da
+  // chave). Medido na pratica: o Chrome aceitou completar ate exatamente
+  // 102400 bytes, mas o Firefox recusou entre 102392-102400 e so aceitou a
+  // partir de 102336 - exige ~64 bytes de folga que o Chrome nao exige. Por
+  // isso o resultado da gravacao do resto e checado e recuado ate caber, em
+  // vez de assumir que sempre funciona.
   async fillSyncTo(bytes) {
     const gravar = obj => new Promise(r => chrome.storage.sync.set(obj, () => r(!chrome.runtime.lastError)));
     const filler = 'x'.repeat(7000);
@@ -130,8 +136,10 @@ const NotasPatTest = {
       if (!(await gravar({ [chave]: filler }))) {
         const quota = chrome.storage.sync.QUOTA_BYTES || 102400;
         const emUso = await new Promise(r => chrome.storage.sync.getBytesInUse(null, r));
-        const resto = quota - emUso - chave.length - 2;
-        if (resto > 0) await gravar({ [chave]: 'x'.repeat(resto) });
+        let resto = quota - emUso - chave.length - 2;
+        while (resto > 0 && !(await gravar({ [chave]: 'x'.repeat(resto) }))) {
+          resto -= 32;
+        }
         break;
       }
       escrito += filler.length + chave.length;
@@ -206,8 +214,22 @@ const NotasPatTest = {
 
   // Nada se perde quando o sync esta cheio
   await NotasPatTest.reset();
-  await NotasPatTest.fillSyncTo(100000);
-  await new Promise(r => chrome.storage.local.set({ note_naocabe: { id: 'naocabe', text: 'fico local', updatedAt: '2030-01-01T00:00:00.000Z' } }, r));
+  const usoA5 = await NotasPatTest.fillSyncTo(100000);
+  const notaNaocabe = { id: 'naocabe', text: 'fico local', updatedAt: '2030-01-01T00:00:00.000Z' };
+  // Pre-condicao: se fillSyncTo nao deixou o sync cheio o bastante para a
+  // propria nota do teste NAO caber, A5/A6 nao provam nada (a nota
+  // simplesmente migraria com sucesso, e o teste passaria por acidente ou
+  // falharia por um motivo que nao e o que se quer medir aqui). Isso ja
+  // aconteceu na pratica antes do fix em fillSyncTo: o Firefox recusava a
+  // gravacao do resto perto do teto exato, entao um fillSyncTo(100000)
+  // parava em 98144 bytes (4256 de sobra) - espaco de sobra suficiente para
+  // a nota pequena do teste caber e migrar mesmo assim, quando o objetivo
+  // era testar exatamente o caso em que ela NAO cabe.
+  const espacoLivreA5 = SYNC_QUOTA_BYTES_TOTAL - usoA5;
+  const tamanhoNaocabe = getItemByteSize('note_naocabe', notaNaocabe);
+  NotasPatTest.assert('A5-pre sync esta cheio o bastante para a nota do teste NAO caber',
+    espacoLivreA5 < tamanhoNaocabe);
+  await new Promise(r => chrome.storage.local.set({ note_naocabe: notaNaocabe }, r));
   const res2 = await migrateNotesToSync();
   NotasPatTest.assertEquals('A5 contabilizou nao migrada', res2.naoMigradas, 1);
   const sobrou = await new Promise(r => chrome.storage.local.get(['note_naocabe'], r));
@@ -316,7 +338,7 @@ const NotasPatTest = {
   NotasPatTest.assert('A14b flag de criacao marcada mesmo pulando (nunca mais tenta)', snap4.premigracao_1_4_0_criado === true);
   NotasPatTest.assert('A14c a nota grande em si nao foi tocada/perdida', !!snap4.note_grande);
 
-  console.log('[NotasPat][TESTE]     esperado no Bloco A: 16/16');
+  console.log('[NotasPat][TESTE]     esperado no Bloco A: 17/17');
 
   // =========================================================
   // BLOCO D — Task 10: usuario existente nao perde dados (CRITICO)
@@ -574,6 +596,6 @@ const NotasPatTest = {
   console.log('[NotasPat][TESTE]     esperado no Bloco F: 4/4 (chamadas de sync.set: ' + chamadasSet + ')');
 
   NotasPatTest.report();
-  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 36/36) =====');
+  console.log('[NotasPat][TESTE] ===== FIM parte 1 (total esperado: 37/37) =====');
   console.log('[NotasPat][TESTE] Proximo: clique direito no icone da extensao > Inspect popup > cole test/verify-1.4.0-ui.js');
 })();
