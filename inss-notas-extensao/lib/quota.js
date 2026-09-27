@@ -14,6 +14,19 @@ const SYNC_QUOTA_BYTES_TOTAL = 102400;   // 100 KB no total
 const SYNC_QUOTA_BYTES_PER_ITEM = 8192;  // 8 KB por chave
 const SYNC_MAX_ITEMS = 512;              // 512 chaves
 
+// Margem de seguranca abaixo do teto exato. Medido na pratica (perfil
+// Firefox descartavel, sync.set sucessivos perto do teto): o Chrome aceitou
+// um total de exatamente 102400 bytes, mas o Firefox recusou totais entre
+// 102392 e 102400 e so aceitou a partir de 102336 - ou seja, o Firefox exige
+// ~64 bytes de folga que o Chrome nao exige, provavelmente overhead de
+// serializacao interno diferente entre os dois. Sem esta margem, planejar
+// (ou aprovar) uma gravacao para exatamente 102400 bytes projetados passa no
+// pre-check mas e recusada de verdade pelo Firefox: no caso do lote unico da
+// migracao/importacao, a gravacao inteira falha, tudo fica em local, e o
+// proximo cold start planeja o MESMO total de novo - nenhuma nota chega a
+// sincronizar. A margem custa 256 bytes de um total de 100 KB (~0.25%).
+const SYNC_QUOTA_SAFETY_MARGIN = 256;
+
 /**
  * Tamanho que o Chrome contabiliza: bytes UTF-8 da chave + do JSON do valor.
  * @param {string} key
@@ -88,7 +101,7 @@ function checkQuotaBeforeWrite(key, value) {
     new Promise(r => chrome.storage.sync.getBytesInUse(key, b => r(b || 0)))
   ]).then(([currentTotal, existingBytes]) => {
     const projectedTotal = currentTotal - existingBytes + itemBytes;
-    if (projectedTotal > SYNC_QUOTA_BYTES_TOTAL) {
+    if (projectedTotal > SYNC_QUOTA_BYTES_TOTAL - SYNC_QUOTA_SAFETY_MARGIN) {
       return { ok: false, limitType: 'TOTAL', projectedTotal };
     }
 

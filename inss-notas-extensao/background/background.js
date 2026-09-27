@@ -252,7 +252,7 @@ async function executarMigracaoParaSync({ notificar = false } = {}) {
       // verdade cabem, marcando-as como "nao couberam" sem necessidade.
       const tamanhoAtualNoSync = jaExisteNoSync ? getItemByteSize(key, sync[key]) : 0;
       const cabe = tamanho <= SYNC_QUOTA_BYTES_PER_ITEM &&
-        totalBytesSync - tamanhoAtualNoSync + tamanho <= SYNC_QUOTA_BYTES_TOTAL &&
+        totalBytesSync - tamanhoAtualNoSync + tamanho <= SYNC_QUOTA_BYTES_TOTAL - SYNC_QUOTA_SAFETY_MARGIN &&
         (jaExisteNoSync || totalItensSync + 1 <= SYNC_MAX_ITEMS);
 
       if (!cabe) {

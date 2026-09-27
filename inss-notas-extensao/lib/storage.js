@@ -381,7 +381,7 @@ function planSyncBatch(entries) {
       const tamanhoAtual = existe ? getItemByteSize(chave, noSync[chave]) : 0;
 
       const cabe = tamanho <= SYNC_QUOTA_BYTES_PER_ITEM &&
-        usados - tamanhoAtual + tamanho <= SYNC_QUOTA_BYTES_TOTAL &&
+        usados - tamanhoAtual + tamanho <= SYNC_QUOTA_BYTES_TOTAL - SYNC_QUOTA_SAFETY_MARGIN &&
         (existe || itens + 1 <= SYNC_MAX_ITEMS);
 
       if (!cabe) {
